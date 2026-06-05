@@ -1,0 +1,81 @@
+{
+  "input": {
+    "loa_min": 100.0,
+    "loa_max": 200.0,
+    "speed": 14.5,
+    "n_samples": 20,
+    "ship_type": "tanker",
+    "bow_type": "bulbous"
+  },
+  "total_evaluated": 20,
+  "cargo_viable": 14,
+  "pareto_size": 4,
+  "best_design": {
+    "id": "SF-20",
+    "hull": {
+      "loa": 126.2,
+      "beam": 17.5,
+      "draft": 6.4,
+      "Cb": 0.76,
+      "bow_type": "bulbous"
+    },
+    "resistance_kN": 243.54,
+    "froude_number": 0.212,
+    "wetted_area_m2": 3127.8,
+    "plate_thickness_mm": 30.0,
+    "hotspot_stress_MPa": 223.78,
+    "structural_utilization": 0.63,
+    "fea_passed": true,
+    "gm_over_loa": 0.0204,
+    "stability_passed": false,
+    "displacement_volume_m3": 10742.14,
+    "fatigue_life_years": 6.035697085961974,
+    "dnv_scantling_passed": true
+  },
+  "all_pareto": [
+    {
+      "id": "SF-02",
+      "loa": 154.8,
+      "beam": 25.6,
+      "draft": 10.9,
+      "Cb": 0.78,
+      "resistance_kN": 410.07,
+      "plate_t_mm": 33.0,
+      "stability_passed": false,
+      "fea_passed": true
+    },
+    {
+      "id": "SF-07",
+      "loa": 148.1,
+      "beam": 26.1,
+      "draft": 10.1,
+      "Cb": 0.81,
+      "resistance_kN": 420.39,
+      "plate_t_mm": 33.0,
+      "stability_passed": false,
+      "fea_passed": true
+    },
+    {
+      "id": "SF-14",
+      "loa": 137.6,
+      "beam": 18.8,
+      "draft": 7.6,
+      "Cb": 0.73,
+      "resistance_kN": 264.73,
+      "plate_t_mm": 31.0,
+      "stability_passed": false,
+      "fea_passed": true
+    },
+    {
+      "id": "SF-20",
+      "loa": 126.2,
+      "beam": 17.5,
+      "draft": 6.4,
+      "Cb": 0.76,
+      "resistance_kN": 243.54,
+      "plate_t_mm": 30.0,
+      "stability_passed": false,
+      "fea_passed": true
+    }
+  ]
+}

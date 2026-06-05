@@ -59,6 +59,62 @@ from optimization import compute_pareto_front
 
 PLOTS_DIR = os.path.join(WORKSPACE, "validation", "plots")
 os.makedirs(PLOTS_DIR, exist_ok=True)
+LIVE_PATH = os.path.join(WORKSPACE, "validation", "live_designs.json")
+
+
+def write_live_update(evaluated, total, params):
+    """Write the current evaluation state to live_designs.json for dashboard polling."""
+    cargo = [d for d in evaluated if d["stability"]["displacement_volume_m3"] >= 10000]
+    try:
+        pareto = compute_pareto_front(cargo) if len(cargo) >= 2 else cargo
+    except Exception:
+        pareto = []
+    pareto_ids = {d["design_id"] for d in pareto}
+
+    # Best so far: minimum resistance among all evaluated
+    best = min(evaluated, key=lambda x: x["cfd"]["total_resistance_kN"]) if evaluated else None
+    # Sequential baseline: ignores stability, just picks minimum drag
+    seq_baseline = min(evaluated, key=lambda x: x["cfd"]["total_resistance_kN"]) if evaluated else None
+    # MCP best: must pass stability + FEA
+    feasible = [d for d in pareto if d["stability"]["passed"] and d["fea"]["passed"]]
+    mcp_best = min(feasible, key=lambda x: x["cfd"]["total_resistance_kN"]) if feasible else best
+
+    def design_entry(d):
+        return {
+            "id": d["design_id"],
+            "hull": d["hull"],
+            "resistance_kN": d["cfd"]["total_resistance_kN"],
+            "frictional_kN": d["cfd"]["frictional_resistance_kN"],
+            "wave_kN": d["cfd"]["wave_resistance_kN"],
+            "froude": d["cfd"]["Froude_number"],
+            "wetted_area_m2": d["cfd"]["wetted_surface_area_m2"],
+            "weight_index": d["scantlings"]["actual_thickness_mm"] * 7.85,
+            "plate_t_mm": d["scantlings"]["actual_thickness_mm"],
+            "hotspot_MPa": d["fea"]["combined_hotspot_stress_MPa"],
+            "utilization": d["fea"]["structural_utilization"],
+            "gm_over_loa": d["stability"]["GM_over_LOA"],
+            "displacement_m3": d["stability"]["displacement_volume_m3"],
+            "fatigue_years": d["fatigue"]["cycles_to_failure"] / (1e8 / 25.0),
+            "stability_pass": bool(d["stability"]["passed"]),
+            "fea_pass": bool(d["fea"]["passed"]),
+            "dnv_pass": bool(d["scantlings"]["passed"]),
+            "pareto": d["design_id"] in pareto_ids,
+        }
+
+    live = {
+        "total": total,
+        "evaluated": len(evaluated),
+        "designs": [design_entry(d) for d in evaluated],
+        "best_so_far": design_entry(best) if best else None,
+        "mcp_best": design_entry(mcp_best) if mcp_best else None,
+        "seq_baseline": design_entry(seq_baseline) if seq_baseline else None,
+        "params": {k: v for k, v in vars(params).items() if not k.startswith("_")},
+    }
+    try:
+        with open(LIVE_PATH, "w") as f:
+            json.dump(live, f)
+    except Exception:
+        pass
 
 
 # ── LHS sampler (respects user-supplied LOA range) ───────────────────────────
@@ -192,6 +248,14 @@ def main():
     # Steps 2-7: Evaluate each design
     print("-- Steps 2-7: Evaluating designs --")
     evaluated = []
+    # Clear live file
+    try:
+        with open(LIVE_PATH, "w") as f:
+            json.dump({"total": len(population), "evaluated": 0, "designs": [], "best_so_far": None,
+                       "mcp_best": None, "seq_baseline": None, "params": vars(args)}, f)
+    except Exception:
+        pass
+
     for i, design in enumerate(population):
         h = design["hull"]
         print(f"  [{i+1:02d}/{len(population)}] {design['design_id']}  "
@@ -208,6 +272,7 @@ def main():
                   f"Stability={'PASS' if stab['passed'] else 'FAIL'}  "
                   f"FEA={'PASS' if fea['passed'] else 'FAIL'}")
             evaluated.append(result)
+            write_live_update(evaluated, len(population), args)  # <- live streaming
         except Exception as e:
             print(f"         -> ERROR: {e}")
 
