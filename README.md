@@ -637,6 +637,40 @@ Executes testing and verification for the entire framework. It contains regressi
 Outputs the comparative LaTeX tables and saves validation plots to verify structural safety compliance.
 
 
+### 8.9 `orchestrator/dashboard.py` (Visual Control Center)
+
+File Location: [orchestrator/dashboard.py](file:///e:/Dr%20Akee/orchestrator/dashboard.py)
+
+#### 1. Core Responsibility and Role:
+Launches a premium local Python HTTP web server. It provides a visual frontend built with Tailwind CSS and glassmorphism that displays system metrics, validation plots, ablation results, and allows triggering the orchestrator co-optimization agent dynamically while streaming standard output logs.
+
+#### 2. Key Components & Functions:
+* `DashboardHandler` (Class): Implements GET/POST handlers to serve HTML, plots, and run triggers.
+* `run_optimization_thread()`: Spawns the agent process in a background thread to stream console output.
+
+#### 3. Key Parameters & Inputs/Outputs:
+* `PORT` (int): Connection port for local server (8000).
+
+#### 4. Safety Margins & Constraint Enforcements:
+Wraps background subprocesses cleanly and provides real-time state alerts (Idle, Running, Success, Error).
+
+
+### 8.10 `validation/run_system_tests.py` (System Verification Tests)
+
+File Location: [validation/run_system_tests.py](file:///e:/Dr%20Akee/validation/run_system_tests.py)
+
+#### 1. Core Responsibility and Role:
+Implements an automated test suite using python's `unittest` module. It asserts physical constraints, checks import states, runs stability metacentric check logic, bottom plating rule calculations, box girder stress FEA, and fatigue ML surrogate predictions to guarantee full system integrity.
+
+#### 2. Key Components & Functions:
+* `TestMCPFramework` (Class): Contains test cases for Rule plating, stability, box girder FEA, and fatigue surrogate ML.
+
+#### 3. Key Parameters & Inputs/Outputs:
+
+#### 4. Safety Margins & Constraint Enforcements:
+Asserts strict validation ranges (e.g. $GM/LOA \ge 0.033$, $\sigma_{hotspot}/\sigma_{yield} \le 0.85$) to check that optimized results comply with classification rules.
+
+
 ---
 
 ## 9. COMPREHENSIVE BENCHMARKING RESULTS & WORKFLOW ABLATION
@@ -897,8 +931,21 @@ This script runs the LHS evaluations and writes three plots to the `validation/p
 * `pareto_frontier.png` (Co-optimization Pareto front)
 * `ablation_comparison.png` (Workflow ablation bar chart)
 
+#### Running the Visual Dashboard
+To launch the control dashboard web UI:
+```bash
+python orchestrator/dashboard.py
+```
+This starts the local Python HTTP server on port 8000 and automatically opens the browser at `http://localhost:8000`. You can trigger co-optimization loops and inspect visual plots in real-time.
+
+#### Running the System Verification Test Suite
+To run the proper, detailed system tests verifying DNV plating rules, intact stability, FEA box girder stress, and fatigue ML surrogate predictions:
+```bash
+python validation/run_system_tests.py
+```
+
 #### Running the Agentic Orchestrator
-To launch the orchestrator agent and start the co-optimization loop:
+To launch the orchestrator agent and start the co-optimization loop via the command line:
 ```bash
 # Set your LLM API keys in a local .env file
 python orchestrator/agent.py
