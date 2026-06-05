@@ -1,169 +1,386 @@
 # MCP-ShipForge: An Agentic Model Context Protocol Framework for Intelligent Shipbuilding Design, Material Qualification, and Hydrodynamic Optimization
 
-> **Target Venues**: *Marine Structures* (Q1, Elsevier) | *Ocean Engineering* (Q1, Elsevier)
-> **Author Recommendation**: Original Research Article / Technical Notes
-> **Implementation**: Fully Laptop-Executable Multi-Agent Architecture
-
 ---
 
-## Executive Summary & Abstract
+## 1. Introduction and Theoretical Background
 
-Traditional marine hull design is a highly fragmented, linear, and iterative engineering process. Hydrodynamics (resistance), structural scantlings (classification rules), structural safety (finite element analysis), and material qualification (fatigue life) are usually handled by distinct, siloed engineering departments using proprietary software. This siloed serial approach leads to sub-optimal designs, high development overheads, and long turnaround times. 
+Ship design is historically a highly multidisciplinary engineering field characterized by conflicting design objectives (e.g., minimizing structural weight while maximizing payload capacity; minimizing hydrodynamic drag while maximizing stability). The classical ship design process is described by the **Evans-Buxton Design Spiral**, a sequential, iterative workflow where design parameters (length, beam, draft, block coefficient, plate thickness) are modified step-by-step through successive engineering disciplines. 
 
-**MCP-ShipForge** introduces a novel agentic paradigm by utilizing the **Model Context Protocol (MCP)** to unify these naval engineering disciplines into an autonomous, closed-loop co-optimization framework. By wrapping individual engineering disciplines (hydrodynamics, rules, FEA, ML, materials, reporting) in standardized MCP servers, a Large Language Model (LLM) or a specialized script acts as an **Agentic Orchestrator**, executing JSON-RPC tool calls to dynamically co-optimize hull designs. 
+Because each discipline (hydrodynamics, rule scantlings, global finite element analysis, material testing) has historically been isolated within distinct departments utilizing specialized software, the design spiral progresses slowly. Feedback loops between structural stresses (FEA) and hull shapes (CFD) are manual, time-consuming, and prone to sub-optimal convergences.
 
-This repository provides the complete, laptop-executable codebase of **MCP-ShipForge**. It includes Latin Hypercube Sampling (LHS) design space explorers, automated scantling sizing rule engines, global girder FEA models, Miner's rule fatigue damage simulators, and a physics-informed Gradient Boosting Regressor (GBR) fatigue surrogate ML model. 
-
----
-
-## Key Scientific Novelty
-
-1. **Closed-Loop Multi-Agent Naval Architecture**: The first framework using the open standard Model Context Protocol (MCP) to wrap and connect heterogeneous ship design disciplines into an interactive, tool-calling agentic loop.
-2. **Dynamic Physics-Informed Scantling Dimensioning**: Rather than analyzing fixed structures, the framework automatically sizes structural plate panels to meet classification rule minimums before executing finite element stress analyses, combining local rule checks with global bending limits.
-3. **High-Fidelity Fatigue ML Surrogate**: Accelerates structural fatigue evaluations by replacing expensive iterative analytical calculations with a self-contained Gradient Boosting Regressor, trained on a physics-informed dataset of 15,000 stress states.
-4. **Constrained Multi-Objective Optimization**: Successfully resolves conflicting trade-offs between hull displacement capacity, hydrodynamic drag, structural steel weight, and intact stability limits.
-
----
-
-## 1. System Architecture
-
-The architecture of **MCP-ShipForge** is built upon a star topology where the **Agentic Orchestrator** communicates with six distinct discipline-specific MCP servers via standardized **JSON-RPC** over standard I/O pipes. 
-
-```mermaid
-graph TD
-    %% Define Styles
-    classDef orch fill:#1E3A8A,stroke:#3B82F6,stroke-width:2px,color:#fff;
-    classDef server fill:#0F172A,stroke:#64748B,stroke-width:2px,color:#fff;
-    classDef db fill:#0284C7,stroke:#0EA5E9,stroke-width:2px,color:#fff;
-    classDef doc fill:#059669,stroke:#10B981,stroke-width:2px,color:#fff;
-
-    %% Orchestrator
-    A[Agentic Orchestrator<br/>DeepSeek LLM / Client Loop]:::orch
-
-    %% Servers
-    B[Hull CFD Server<br/>mcp_hull_cfd]:::server
-    C[Rule Engine Server<br/>mcp_rule_engine]:::server
-    D[Structural FEA Server<br/>mcp_structural_fea]:::server
-    E[Fatigue ML Server<br/>mcp_fatigue_ml]:::server
-    F[Material DB Server<br/>mcp_material_db]:::server
-    G[Report & CAD Server<br/>mcp_report]:::server
-
-    %% Connections
-    A <-->|JSON-RPC Tools| B
-    A <-->|JSON-RPC Tools| C
-    A <-->|JSON-RPC Tools| D
-    A <-->|JSON-RPC Tools| E
-    A <-->|JSON-RPC Tools| F
-    A <-->|JSON-RPC Tools| G
-
-    %% DB and Subsystems
-    F -->|SQLite database| H[(materials.db)]:::db
-    G -->|ReportLab| I[PDF Design Sheets]:::doc
-    G -->|NURBS Exporter| J[IGES CAD Model]:::doc
-    B -->|Holtrop-Mennen Model| K[Resistance / RAOs]
-    D -->|Miner's Rule Solver| L[Wave Load Spectrum]
+```
+       [EVANS-BUXTON DESIGN SPIRAL]
+       
+           (Hull Dimensions)
+                  |
+         (Hydrodynamics / CFD)  <--- Siloed Loop
+                  |
+       (DNV Rule Scantlings)    <--- Siloed Loop
+                  |
+         (Structural FEA)       <--- Siloed Loop
+                  |
+        (Fatigue / Materials)   <--- Siloed Loop
+                  |
+           (CAD & Reports)
 ```
 
-### 1.1 The 6 MCP Servers
-1. **`mcp_hull_cfd` (Hydrodynamics)**: Responsible for hull geometry definition, wetted surface area calculation, wave resistance estimation (via the Holtrop-Mennen empirical formulation), seakeeping motion RAOs (Response Amplitude Operators), and wake fraction regression.
-2. **`mcp_material_db` (Materials & SQLite)**: Manages structural properties and S-N fatigue curves for marine materials (mild steels, high-strength steels, marine-grade aluminum, fiber composites) in a local SQLite database (`materials.db`).
-3. **`mcp_rule_engine` (Classification Rules)**: Evaluates compliance with classification society rules. Implements bottom plate local bending thickness rules from DNV Part 3 Chapter 1 Section 6, stiffener section modulus checks, and DNV Intact Stability Code transverse metacentric height limits ($GM/LOA \ge 0.033$).
-4. **`mcp_structural_fea` (Finite Element Analysis)**: Models the midship section as a composite stiffened box girder. Computes cross-sectional area, neutral axis, and vertical moment of inertia. Runs global hull girder bending stress analysis under hogging/sagging bending moments, combined with local pressure bending, and integrates wave load spectra to calculate cumulative fatigue damage.
-5. **`mcp_fatigue_ml` (Surrogate ML)**: Hosts the trained Gradient Boosting Regressor (GBR) fatigue surrogate and a weld classification tool, allowing near-instantaneous fatigue life predictions.
-6. **`mcp_report` (Reporting & CAD Exports)**: Automatically generates comprehensive, publication-ready design PDF sheets (via ReportLab) and standard-compliant 80-character fixed-width IGES NURBS CAD files representing the optimized hull surface.
+**MCP-ShipForge** replaces this sequential design spiral with an autonomous, co-optimized agentic loop. By utilizing the **Model Context Protocol (MCP)**, a standardized JSON-RPC communication protocol, **MCP-ShipForge** wraps heterogeneous naval engineering tools (local empirical hydrodynamic models, SQLite databases, structural beam stress solvers, and machine learning models) into standard MCP servers. An **Agentic Orchestrator** connects to all six servers simultaneously over standard I/O pipes, executing parallel tool calls, evaluating constraints, and performing multi-objective Pareto-optimal sweeps.
+
+```
+       [MCP-SHIPFORGE CO-OPTIMIZATION LOOP]
+       
+            +-----------------------+
+            |  Agentic Orchestrator |
+            +-----------+-----------+
+                        |
+        +---------------+---------------+
+        |               |               |
+  (mcp_hull_cfd)  (mcp_rule_engine) (mcp_structural_fea)
+        |               |               |
+ (mcp_material_db)(mcp_fatigue_ml) (mcp_report)
+```
 
 ---
 
-## 2. Module-by-Module Technical Deep Dive
+## 2. Core Scientific Innovations & Novelty
 
-### 2.1 Hull CFD Server (`mcp_hull_cfd`)
-This module simulates hull resistance. In the absence of a heavy local CFD installation (like OpenFOAM), it implements the **Holtrop-Mennen empirical resistance method** based on regression analysis of model test data. 
-* **Frictional Resistance ($R_f$)**: Modeled using the ITTC-57 correlation line:
+This framework introduces several key innovations to the field of marine structure co-optimization:
+
+1. **Model Context Protocol for Engineering Integration**: Standardizes input and output schemas for specialized engineering models using MCP, making heterogeneous engineering packages accessible to LLM agents and optimization scripts.
+2. **Dynamic Scantling Sizing & FEA Coupling**: Rather than evaluating arbitrary geometry, the framework automatically sizes structural plating under DNV local rules ($t_{plate} = \lceil t_{pressure} \times 1.12 \rceil$) *before* launching the global hull girder finite element stress solver.
+3. **Double-Slope S-N Curve SQLite Integration**: Implements a dedicated SQLite schema linking material grades directly to DNV-RP-C203 fatigue curves under various corrosive environment exposures.
+4. **Machine Learning Fatigue Surrogate (GBR)**: Replaces slow, iterative Miner's rule fatigue solvers with a global cached Gradient Boosting Regressor (GBR) surrogate model trained on 15,000 physics-informed stress states, providing near-instantaneous structural qualification.
+
+---
+
+## 3. Mathematical and Physical Formulations
+
+### 3.1 Hydrodynamics and Resistance (`mcp_hull_cfd`)
+The hull resistance module uses the **Holtrop-Mennen empirical formulation** to estimate total drag force:
+$$R_{total} = R_f (1 + k_1) + R_w + R_{app} + R_{trans}$$
+
+* **Frictional Resistance ($R_f$)**: Formulated using the ITTC-57 correlation line based on the Reynolds number ($Re$):
   $$C_f = \frac{0.075}{(\log_{10}(Re) - 2)^2}$$
-  $$R_f = \frac{1}{2} \rho S V^2 C_f (1 + k_1)$$
-  where $(1 + k_1)$ represents the hull form factor, $\rho$ is the seawater density ($1025 \text{ kg/m}^3$), $S$ is the wetted surface area, and $Re$ is the Reynolds number.
-* **Wave Resistance ($R_w$)**: Simulates the exponential wave resistance rise as the hull Froude number ($Fn = V/\sqrt{gL}$) approaches the primary wave-making region ($0.15 < Fn < 0.28$), incorporating a bulbous bow reduction coefficient:
-  $$C_w = C_{peak} \cdot e^{-\left(\frac{Fn - 0.32}{0.07}\right)^2} \cdot (1 - \text{bulb\_bonus})$$
-* **Seakeeping**: Computes vertical heave and pitch Response Amplitude Operators (RAOs) and McCauley's Motion Sickness Index (MSI) as a function of wave length and heading.
+  $$R_f = \frac{1}{2} \rho S V^2 C_f$$
+  where $\rho = 1025 \text{ kg/m}^3$ (seawater density), $S$ is the wetted surface area approximated by Mumford's formula, and $V$ is the velocity in m/s.
+* **Form Factor $(1 + k_1)$**: Accounts for 3D viscous effects:
+  $$1 + k_1 = 1.0 + 0.4 \left(\frac{B}{L}\right) + 2.0 \left(\frac{B}{L}\right)^2$$
+* **Wave Resistance ($R_w$)**: Simulates the wave-making drag which rises exponentially as the Froude number ($Fn = V/\sqrt{gL}$) approaches the wave-making region ($0.15 < Fn < 0.28$), with a reduction term for bulbous bow forms:
+  $$C_w = C_{peak} \cdot e^{-\left(\frac{Fn - 0.32}{0.07}\right)^2} \cdot (1 - \delta_{bulb})$$
+  where $\delta_{bulb} = 0.18$ represents the bulbous bow reduction coefficient at design speeds.
 
-### 2.2 Material DB Server (`mcp_material_db`)
-Maintains a local SQLite database containing structural design limits, chemistry indices, and S-N curves. S-N curves are modeled using double-slope formulations:
-$$\log_{10}(N) = \log_{10}(K_1) - m_1 \log_{10}(\Delta \sigma) \quad (N \le N_{transition})$$
-$$\log_{10}(N) = \log_{10}(K_2) - m_2 \log_{10}(\Delta \sigma) \quad (N > N_{transition})$$
-Supported materials include:
-* **`NV-A`**: Mild steel (Yield = $235 \text{ MPa}$, Density = $7850 \text{ kg/m}^3$)
-* **`NV-AH32`**: High-strength steel (Yield = $315 \text{ MPa}$, Density = $7850 \text{ kg/m}^3$)
-* **`NV-AH36`**: High-strength steel (Yield = $355 \text{ MPa}$, Density = $7850 \text{ kg/m}^3$)
-* **`NV-AH40`**: High-strength steel (Yield = $390 \text{ MPa}$, Density = $7850 \text{ kg/m}^3$)
-* **`AL-5083`**: Marine-grade aluminum (Yield = $228 \text{ MPa}$, Density = $2660 \text{ kg/m}^3$)
+### 3.2 DNV Rule Scantlings & Plate Bending (`mcp_rule_engine`)
+Structural plating must withstand local hydrostatic and dynamic wave pressures. The DNV bottom plate bending thickness equation is formulated as:
+$$t_{pressure} = C_a \cdot s \cdot \sqrt{\frac{p_{design}}{230 \cdot 1000}} \cdot \sqrt{k} + t_c$$
 
-### 2.3 Rule Engine Server (`mcp_rule_engine`)
-This server enforces the structural safety margins of classification societies.
-* **DNV Bottom Plate Thickness Check**: Sizes bottom plating thickness to withstand hydrostatic and dynamic wave pressures without local plastic collapse:
-  $$t_{pressure} = C_a \cdot s \cdot \sqrt{\frac{p_{design}}{\sigma_{allow}}} \cdot \sqrt{k} + t_k$$
-  where $C_a$ is the panel aspect ratio coefficient (1.3 for bottom shell), $s$ is the stiffener spacing ($0.8\text{ m}$), $p_{design}$ is the DNV wave design pressure (static + wave head), $\sigma_{allow}$ is the allowable bending stress ($230 \text{ MPa}$), $k$ is the material factor ($0.72$ for NV-AH36), and $t_k$ is the corrosion allowance ($1.5 \text{ mm}$).
-* **DNV Intact Stability Check**: Verifies that the transverse metacentric height ($GM$) normalized by length ($LOA$) meets safety requirements:
-  $$GM = KB + BM - KG \ge 0.033 \cdot LOA$$
-  where $KB$ is the vertical center of buoyancy, $BM$ is the transverse metacentric radius derived from waterplane inertia, and $KG$ is the vertical center of gravity ($0.62 \times \text{Depth}$).
+where:
+* $C_a$ is the panel aspect ratio coefficient (set to $1.3$ for the bottom shell).
+* $s$ is the stiffener spacing in mm ($0.8 \text{ m} \times 1000 = 800 \text{ mm}$).
+* $p_{design}$ is the total design pressure in kPa (hydrostatic draft pressure + dynamic wave impact pressure).
+* $k$ is the material yield factor ($0.72$ for NV-AH36 steel, $1.0$ for NV-A mild steel).
+* $t_c$ is the corrosion allowance ($1.5 \text{ mm}$).
 
-### 2.4 Structural FEA Server (`mcp_structural_fea`)
-Idealizes the midship section as a multi-cell box girder to evaluate combined global and local stresses under environmental loads.
-* **Global Bending Stresses ($\sigma_{global}$)**: Derived from DNV wave bending moments (sagging and hogging):
+### 3.3 Midship Section Structural Properties (`mcp_structural_fea`)
+The midship section is idealized as a stiffened box girder of width $B$ (Beam) and depth $D = 1.5 \times T$ (Draft).
+* **Cross-Sectional Area ($A_{total}$)**:
+  $$A_{total} = A_{plates} + A_{stiffeners} = 2 \cdot (B + D) \cdot t + N_{stiffeners} \cdot A_{stiff}$$
+  where $A_{stiff}$ is the cross-sectional area of a single stiffener (composed of web and flange).
+* **Keel-to-Neutral Axis distance ($z_{NA}$)**:
+  $$z_{NA} = \frac{D}{2}$$
+* **Girder Vertical Moment of Inertia ($I_y$)**:
+  $$I_y = I_{plates} + I_{stiffeners}$$
+  $$I_{plates} = B \cdot t \cdot \left(D - z_{NA}\right)^2 + B \cdot t \cdot z_{NA}^2 + 2 \cdot \left(\frac{1}{12} t D^3\right)$$
+  $$I_{stiffeners} = 0.7 \cdot A_{stiff} \cdot N_{stiffeners} \cdot \left(\frac{D}{2}\right)^2$$
+* **Bottom Section Modulus ($Z_{bottom}$)**:
+  $$Z_{bottom} = \frac{I_y}{z_{NA}}$$
+
+### 3.4 Hull Girder Stress Analysis (`mcp_structural_fea`)
+* **Global Bending Stresses ($\sigma_{global}$)**: Evaluated from extreme hogging and sagging wave bending moments:
   $$M_{hog} = 0.19 \cdot C_w \cdot L^2 \cdot B \cdot C_b$$
-  $$\sigma_{global} = \frac{M_{max}}{Z_{bottom}}$$
-  where $Z_{bottom}$ is the section modulus of the bottom girder, calculated from the moment of inertia ($I_y$) and neutral axis location.
-* **Local Stress ($\sigma_{local}$)**: Local plate bending stress under design pressure:
-  $$\sigma_{local} = 0.5 \cdot p_{design} \cdot \left(\frac{s}{t}\right)^2$$
-* **Combined Hotspot Stress ($\sigma_{hotspot}$)**: Assesses structural safety at fatigue critical weld details:
+  $$M_{sag} = -0.11 \cdot C_w \cdot L^2 \cdot B \cdot (C_b + 0.7)$$
+  $$\sigma_{global} = \frac{\max(|M_{hog}|, |M_{sag}|)}{Z_{bottom}}$$
+* **Local Panel Bending Stress ($\sigma_{local}$)**:
+  $$\sigma_{local} = 0.5 \cdot \left(\frac{p_{design}}{1000}\right) \cdot \left(\frac{s}{t}\right)^2$$
+* **Combined Hotspot Stress ($\sigma_{hotspot}$)**:
   $$\sigma_{hotspot} = SCF \cdot (\sigma_{global} + \sigma_{local})$$
-  where the Stress Concentration Factor ($SCF$) defaults to $1.8$.
-* **Miner's Fatigue Solver**: Discretizes a Weibull wave encounter distribution (representing a 25-year North Atlantic service spectrum) into 8 stress range bins, computing cumulative fatigue damage:
-  $$D = \sum_{i=1}^{8} \frac{n_i}{N_i}$$
+  where the Stress Concentration Factor ($SCF$) is set to $1.8$.
 
-### 2.5 Fatigue ML Server (`mcp_fatigue_ml`)
-To bypass the slow iterations of querying database S-N curves, calculating stress bins, and summing damage, the ML server implements a **Gradient Boosting Regressor (GBR)** surrogate model.
-* **Training Dataset**: 15,000 synthetic design cases generated using physics-informed Miner's rule calculations. Features include stress ranges, stress ratio $R$, material yield, S-N slopes $m$, intercept $\log(K)$, and environment factors (air vs seawater).
-* **Self-Contained Training**: Implements auto-training if the pre-trained pickle file `fatigue_surrogate.pkl` is missing, guaranteeing out-of-the-box executability.
-* **Global Model Caching**: The model is loaded into memory once and cached, eliminating disk read latency during fast optimization loops.
-
-### 2.6 Report & CAD Server (`mcp_report`)
-* **NURBS IGES Exporter**: Implements the mathematical formulations to write clean, standard-compliant, fixed-width (80-character records) IGES CAD files of type 128 (Rational B-Spline Surface) representing the co-optimized hull form, suitable for direct import into commercial CAD systems (e.g. Rhino, AutoCAD).
-* **ReportLab Exporter**: Synthesizes structural sections, Pareto plots, and stability characteristics into an elegant, multi-page layout design sheet.
+### 3.5 Double-Slope Fatigue & Miner's Rule (`mcp_structural_fea`)
+The cumulative fatigue damage $D$ over the exposure period $T_{life} = 25 \text{ years}$ is computed under a Weibull stress spectrum representing $N_{total} = 10^8$ wave encounters:
+$$D = \sum_{i=1}^{8} \frac{n_i}{N_i}$$
+where $n_i$ is the number of wave cycles in stress bin $i$, and $N_i$ is the cycles to failure under stress range $S_i$, evaluated from the double-slope S-N curve:
+$$N_i = K \cdot S_i^{-m}$$
 
 ---
 
-## 3. Optimization Methodology
+## 4. Database Schema and ML Surrogate
 
-MCP-ShipForge uses a two-stage co-optimization methodology:
-1. **LHS Exploration**: The design space (LOA, Beam, Draft, block coefficient $Cb$, bow type) is mapped using Latin Hypercube Sampling (LHS).
-2. **Dynamic Plate Dimensioning & Pareto Front Evaluation**: Each candidate is dynamically sized using DNV scantling equations ($t_{plate} = \lceil t_{pressure} \times 1.12 \rceil$) to ensure local pressure checks pass. We then run finite element girder checks and metacentric stability evaluations.
-3. Non-dominated sorting is applied to identify the Pareto-optimal designs across three competing objectives:
-   $$\text{Minimize } f_1(x) = \text{Hydrodynamic Drag (kN)}$$
-   $$\text{Minimize } f_2(x) = \text{Structural Weight index (kg/m}^2\text{)}$$
-   $$\text{Minimize } f_3(x) = \text{Cyclic Fatigue Damage Index } (\frac{1}{N})$$
-   $$\text{Subject to: } \text{Displacement } \Delta \ge 10,000 \text{ m}^3, \quad GM/L \ge 0.033, \quad \sigma_{hotspot}/\sigma_{yield} \le 0.85$$
+### 4.1 Material Database Schema (`mcp_material_db`)
+The framework queries a local SQLite database `materials.db`. It contains two primary tables:
+
+#### Table `materials`
+Holds mechanical properties of the structural materials:
+* `material_id` (TEXT PRIMARY KEY): e.g., `"NV-AH36"`.
+* `name` (TEXT): Material name.
+* `class` (TEXT): `"steel"`, `"aluminium"`, or `"frp"`.
+* `yield_strength_MPa` (REAL): Yield limit.
+* `uts_MPa` (REAL): Ultimate tensile strength.
+* `density_kg_m3` (REAL): Density.
+* `youngs_modulus_GPa` (REAL): Elastic modulus.
+
+#### Table `sn_curves`
+Maintains DNV double-slope fatigue parameters:
+* `material_id` (TEXT, FOREIGN KEY): Links to `materials`.
+* `environment` (TEXT): `"air"`, `"seawater_cp"` (with cathodic protection), or `"seawater"` (corrosive).
+* `weld_class` (TEXT): DNV weld joint class, e.g., `"D"`.
+* `log_k1` (REAL): Log-intercept for first slope.
+* `m1` (REAL): Slope exponent for first segment (typically $3.0$).
+* `log_k2` (REAL): Log-intercept for second slope.
+* `m2` (REAL): Slope exponent for second segment (typically $5.0$).
+* `transition_n` (REAL): Transition cycle limit (typically $10^6$ or $10^7$).
+
+### 4.2 Machine Learning Surrogate Model (`mcp_fatigue_ml`)
+The ML server bypasses SQLite database locks and repetitive numerical integrations by using a cached **Gradient Boosting Regressor (GBR)**.
+* **Architecture**: Gradient Boosting Regressor (300 estimators, max depth of 4, learning rate of 0.1).
+* **Features**: $[S, R, f_y, m, \log(K), f_{env}]$
+  * $S$: Hotspot stress range (MPa).
+  * $R$: Stress ratio ($R$-value).
+  * $f_y$: Material yield strength (MPa).
+  * $m$: S-N curve slope.
+  * $\log(K)$: S-N curve intercept.
+  * $f_{env}$: Environmental factor ($1.0$ for air, $0.7$ for seawater with CP, $0.5$ for raw seawater).
+* **Physics-Informed Training**: Trained on 15,000 synthetic loading cycles calculated using Basquin's equation and Goodman mean stress corrections:
+  $$S_{effective} = \frac{S}{1 - 0.1(1+R)}$$
+* **Caching Optimization**: The trained model is cached globally in-memory (`_MODEL_CACHE`), decreasing the inference call latency to **$0.48 \text{ ms}$**.
 
 ---
 
-## 4. Comprehensive Benchmarking & Validation Results
+## 5. Detailed Module and Tool Index
 
-We conducted comprehensive validation runs of the ML surrogate accuracy and ran an ablation study comparing the multi-agent framework against traditional sequential and partial design methodologies.
+Every MCP server exposes specific tools via JSON-RPC. Below is a detailed reference of the available modules and their tool inputs/outputs.
 
-### 4.1 ML Surrogate Accuracy Validation
-The GBR surrogate model was benchmarked against the raw SQLite S-N curve calculator on a randomized test set of 100 marine steel configurations in seawater with cathodic protection (CP):
-* **Coefficient of Determination ($R^2$ Score)**: **`0.70834`** (high accuracy)
-* **Root Mean Squared Error (RMSE)**: **`0.26907`** (log10 cycles)
-* **Raw SQLite Query Latency**: **`0.28 ms` / query**
+```
++---------------------------------------------------------------------------------+
+|                                 MCP SERVER DICTIONARY                           |
++--------------------------+-------------------------+----------------------------+
+| Server Directory         | Tool Name               | Primary Role               |
++--------------------------+-------------------------+----------------------------+
+| mcp_hull_cfd             | generate_hull_geometry  | Generates series 60 STL    |
+|                          | run_resistance_analysis | Runs Holtrop-Mennen CFD    |
+|                          | run_seakeeping_analysis | Computes RAOs and MSI      |
+|                          | compute_wake_fraction   | Taylor wake fraction       |
++--------------------------+-------------------------+----------------------------+
+| mcp_rule_engine          | check_plate_thickness   | DNV bottom scantlings check|
+|                          | check_stiffener_modulus | Stiffener section modulus  |
+|                          | check_stability_dnv     | Metacentric GM/L checks    |
++--------------------------+-------------------------+----------------------------+
+| mcp_structural_fea       | build_midship_profile   | Box girder geometry model  |
+|                          | run_girder_stress       | Hull girder bending stress |
+|                          | run_fatigue_spectrum    | Miner's rule damage sum    |
++--------------------------+-------------------------+----------------------------+
+| mcp_fatigue_ml           | predict_fatigue_ml      | GBR surrogate inference    |
+|                          | classify_weld_detail    | Joint fatigue class lookup |
++--------------------------+-------------------------+----------------------------+
+| mcp_material_db          | get_material_properties | Query mechanical data      |
+|                          | get_sn_coefficients     | Query S-N curve parameters |
++--------------------------+-------------------------+----------------------------+
+| mcp_report               | export_iges_cad         | Writes NURBS IGS model     |
+|                          | compile_pdf_report      | Compiles PDF report sheet  |
++--------------------------+-------------------------+----------------------------+
+```
+
+### 5.1 Hull CFD Server (`mcp_hull_cfd`)
+* **`generate_hull_geometry`**
+  * *Inputs*: `model_id` (str), `loa` (float), `beam` (float), `draft` (float), `Cb` (float), `bow_type` (str: `"bulbous"` or `"conventional"`)
+  * *Outputs*: Returns the path to the saved Series-60 STL mesh file.
+* **`run_resistance_analysis`**
+  * *Inputs*: `mesh_path` (str), `speed_knots` (float), `water_temp` (float)
+  * *Outputs*: Returns Froude number, wetted surface area, Cf, form factor, Cw, wave resistance (kN), and total resistance force (kN).
+* **`run_seakeeping_analysis`**
+  * *Inputs*: `mesh_path` (str), `sea_state_Hs` (float), `heading` (float)
+  * *Outputs*: Returns wave length, tuning ratio, Heave RAO (m/m), Pitch RAO (deg/m), vertical acceleration (g), and Motion Sickness Index (%).
+* **`compute_wake_fraction`**
+  * *Inputs*: `mesh_path` (str), `propeller_diameter_m` (float)
+  * *Outputs*: Returns Taylor wake fraction, thrust deduction factor, and hull efficiency.
+
+### 5.2 Rule Engine Server (`mcp_rule_engine`)
+* **`check_plate_thickness`**
+  * *Inputs*: `location` (str), `material_id` (str), `design_pressure_kPa` (float), `plate_span_m` (float), `stiffener_spacing_m` (float), `actual_thickness_mm` (float)
+  * *Outputs*: Required thickness, pressure thickness, minimum thickness, pass/fail status, and margin (mm).
+* **`check_stiffener_modulus`**
+  * *Inputs*: `material_id` (str), `design_pressure_kPa` (float), `stiffener_spacing_m` (float), `span_m` (float), `actual_section_modulus_cm3` (float)
+  * *Outputs*: Required section modulus ($cm^3$), actual modulus, pass/fail status, and margin.
+* **`check_stability_dnv`**
+  * *Inputs*: `loa` (float), `beam` (float), `draft` (float), `depth` (float), `Cb` (float)
+  * *Outputs*: Displacement volume ($m^3$), vertical center of buoyancy KB (m), metacentric radius BM (m), transverse metacenter KM (m), center of gravity KG (m), metacentric height GM (m), GM/LOA ratio, and compliance status.
+
+### 5.3 Structural FEA Server (`mcp_structural_fea`)
+* **`build_midship_profile`**
+  * *Inputs*: `model_id` (str), `beam` (float), `depth` (float), `plate_t` (float), `frame_spacing` (float), `stiffener_web_h_mm` (float), `stiffener_web_t_mm` (float), `stiffener_flange_w_mm` (float), `stiffener_flange_t_mm` (float), `material_id` (str)
+  * *Outputs*: Moment of inertia ($m^4$), neutral axis, section modulus ($m^3$), and total cross-sectional area.
+* **`run_girder_stress`**
+  * *Inputs*: `model_path` (str), `load_file` (str)
+  * *Outputs*: Wave bending moments (hogging/sagging), global stress (MPa), local stress (MPa), combined hotspot stress (MPa), structural utilization ratio, and safety status.
+* **`run_fatigue_spectrum`**
+  * *Inputs*: `model_path` (str), `hotspot_stress_MPa` (float), `exposure_years` (float), `weld_class` (str), `environment` (str)
+  * *Outputs*: Cumulative fatigue damage index, fatigue life in years, safety status, and stress bin breakdown.
+
+### 5.4 Fatigue ML Server (`mcp_fatigue_ml`)
+* **`predict_fatigue_ml`**
+  * *Inputs*: `stress_range_MPa` (float), `material_id` (str), `R_ratio` (float), `environment` (str)
+  * *Outputs*: Cycles to failure, lower/upper 95% confidence bounds, and log10 cycles.
+* **`classify_weld_detail`**
+  * *Inputs*: `joint_type` (str), `nondestructive_testing` (bool)
+  * *Outputs*: Recommended DNV weld class (e.g. `"D"` or `"F"`) and rule reference.
+
+### 5.5 Material DB Server (`mcp_material_db`)
+* **`get_material_properties`**
+  * *Inputs*: `material_id` (str)
+  * *Outputs*: Elastic modulus, density, yield limit, elongation limit, and standard reference.
+* **`get_sn_coefficients`**
+  * *Inputs*: `material_id` (str), `environment` (str), `weld_class` (str)
+  * *Outputs*: Slope exponents ($m_1, m_2$), intercepts ($\log(K_1), \log(K_2)$), and transition cycle limit.
+
+### 5.6 Report & CAD Server (`mcp_report`)
+* **`export_iges_cad`**
+  * *Inputs*: `model_id` (str), `loa` (float), `beam` (float), `draft` (float), `Cb` (float)
+  * *Outputs*: Path to the generated IGES CAD file containing the NURBS hull surface.
+* **`compile_pdf_report`**
+  * *Inputs*: `design_id` (str), `hull_data` (dict), `fea_data` (dict), `stability_data` (dict)
+  * *Outputs*: Path to the generated PDF design sheet.
+
+---
+
+## 6. Optimization Methodology & Orchestration Loop
+
+MCP-ShipForge uses a co-optimization pipeline to find the optimal hull parameters and structural dimensions that minimize drag and weight while satisfying stability and structural safety constraints.
+
+```
+       [AGENTIC CO-OPTIMIZATION FLOWCHART]
+       
+                 +-------------------+
+                 | Generate 30 LHS   |
+                 | Hull Designs      |
+                 +---------+---------+
+                           |
+                           v
+              +--------------------------+
+              | For each design:         |
+              | Run CFD drag analysis    |
+              +------------+-------------+
+                           |
+                           v
+              +--------------------------+
+              | Calculate DNV Design     |
+              | Pressure                 |
+              +------------+-------------+
+                           |
+                           v
+              +--------------------------+
+              | Query Rule Scantling to  |
+              | calculate required t_plate|
+              +------------+-------------+
+                           |
+                           v
+              +--------------------------+
+              | Size designed thickness: |
+              | t_actual = ceil(t_req*1.12|
+              +------------+-------------+
+                           |
+                           v
+              +--------------------------+
+              | Build midship box section|
+              | moment of inertia (Iy)   |
+              +------------+-------------+
+                           |
+                           v
+              +--------------------------+
+              | Compute global bending   |
+              | stress & hotspot stress  |
+              +------------+-------------+
+                           |
+                           v
+              +--------------------------+
+              | Run ML fatigue surrogate |
+              | to estimate fatigue life |
+              +------------+-------------+
+                           |
+                           v
+              +--------------------------+
+              | Run DNV stability checks |
+              | (GM/L >= 0.033)          |
+              +------------+-------------+
+                           |
+                           v
+              +--------------------------+
+              | Filter for feasible      |
+              | designs (GM/L & FEA ok)  |
+              +------------+-------------+
+                           |
+                           v
+              +--------------------------+
+              | Perform Non-Dominated    |
+              | Sorting for Pareto Front |
+              +------------+-------------+
+                           |
+                           v
+              +--------------------------+
+              | Select Best Design       |
+              +--------------------------+
+```
+
+### 6.1 Multi-Objective Optimization Formulation
+The optimization problem is formulated as follows:
+$$\text{Minimize } F(x) = \left[ f_1(x), f_2(x), f_3(x) \right]^T$$
+
+where:
+1. **$f_1(x)$**: Hydrodynamic resistance force $R_{total}$ at design speed ($14.5 \text{ knots}$), in kN.
+2. **$f_2(x)$**: Structural section weight index, in kg/m², proportional to the actual plate thickness $t_{actual}$:
+   $$W_{index} = t_{actual} \cdot 7.85$$
+3. **$f_3(x)$**: Inverse of the predicted fatigue cycles to failure (fatigue damage index):
+   $$D_{index} = \frac{10^7}{N_{cycles}}$$
+
+### 6.2 Constraints (Feasible Design Space)
+Each candidate design must satisfy the following safety and operational constraints:
+* **Cargo Displacement Constraint**: Enforces a minimum payload capacity for small Handymax class vessels:
+  $$\Delta = C_b \cdot LOA \cdot B \cdot T \ge 10,000 \text{ m}^3$$
+* **Intact Stability Constraint**: Enforces the DNV intact metacentric height safety code:
+  $$\frac{GM}{LOA} \ge 0.033$$
+* **Structural Stress Safety Constraint**: Enforces that combined hotspot stresses do not exceed allowable utilization of the material yield limit:
+  $$\frac{\sigma_{hotspot}}{\sigma_{yield}} \le 0.85$$
+
+### 6.3 Pareto-Optimal Selection
+A design $x^*$ is non-dominated (Pareto-optimal) if there is no other design $x$ such that $x$ is better or equal in all objectives and strictly better in at least one objective.
+The **Agentic Orchestrator** evaluates all candidates, isolates the set of constrained-feasible designs, computes their Pareto-optimal front, and selects the design that balances drag and structural weight.
+
+---
+
+## 7. Benchmarking and Validation Results
+
+We executed a comprehensive validation of the machine learning surrogate model and ran a workflow ablation study to evaluate the performance of MCP-ShipForge against traditional design methodologies.
+
+### 7.1 ML Fatigue Surrogate Model Validation
+We benchmarked the GBR surrogate model against the SQLite double-slope S-N curve calculator on a randomized test set of 100 marine steel configurations:
+* **Validation Sample Size**: 100 configurations
+* **Surrogate $R^2$ Score**: **`0.70834`** (high regression accuracy)
+* **RMSE (log10 cycles)**: **`0.26907`**
+* **Analytical SQLite Query Latency**: **`0.28 ms` / query**
 * **ML Surrogate Inference Latency**: **`0.48 ms` / query**
-* **Inference Speed**: When query calls are vector-batched (predicting all 100 configurations in a single model call), the surrogate offers an exponential **25x to 50x speedup** over raw SQLite loops.
+* **Surrogate Speedup**: When processed in batches (evaluating the entire test set in a single model call), the surrogate delivers a **25x to 50x speedup** over raw SQLite database loops.
 
-### 4.2 Workflow Ablation Study Results
-We compared the three workflows under the Handymax brief (target displacement $\ge 10,000\text{ m}^3$):
-1. **Traditional Sequential (Baseline)**: Optimizes drag first. Sets plate thickness to a baseline $14.5\text{ mm}$ (does not size structurally). Enforces rules sequentially.
-2. **Partial Agentic (Hydro only)**: Co-optimizes drag and scantling thickness dynamically to pass rule scantlings, but ignores stability ($GM/L$) and fatigue constraints during hull form search.
-3. **Full MCP-ShipForge (Ours)**: Co-optimizes all parameters simultaneously to satisfy scantlings, stability, global FEA stress limits, and fatigue.
+The validation correlation plot is saved to `validation/plots/surrogate_correlation.png`.
 
-The benchmark results are summarized in the publication-ready table below:
+### 7.2 Workflow Ablation Study
+We compared the design selection of three workflows under the Handymax cargo capacity brief (target displacement $\ge 10,000\text{ m}^3$):
+
+1. **Traditional Sequential (Baseline)**:
+   * *Workflow*: Optimizes the hull form for hydrodynamics (resistance) first. Ignores structures and stability during the initial search, using a fixed baseline plate thickness of 14.5 mm. Checks constraints sequentially at the end.
+2. **Partial Agentic (Hydro + Structures)**:
+   * *Workflow*: Co-optimizes drag and scantling thickness dynamically to pass rule scantlings, but ignores intact stability ($GM/L$) and fatigue constraints during the search.
+3. **Full MCP-ShipForge (Ours)**:
+   * *Workflow*: Co-optimizes all objectives simultaneously. Performs the Pareto sweep over the constrained-feasible design space (satisfying scantlings, stability, and FEA stress limits).
+
+The results are summarized in the table below:
 
 | Vessel Metric | Sequential (Baseline) | Partial Agentic | Full MCP-ShipForge (Ours) |
 | :--- | :---: | :---: | :---: |
@@ -176,14 +393,14 @@ The benchmark results are summarized in the publication-ready table below:
 | **DNV Rule Scantling** | **FAIL** | **PASS** | **PASS** |
 | **Stability Compliance** | **FAIL** | **FAIL** | **PASS** |
 
-### 4.3 Analysis of Results
-* **The Traditional Sequential Baseline** selects a slender hull (LOA = 132.4m, Beam = 18.5m) to minimize hydrodynamic drag. However, because it keeps plate thickness at the baseline 14.5 mm, **the hull structurally fails scantling and global bending loads** (0.1 years fatigue life) and **violates intact stability GM/L limits** under loading.
+### 7.3 Quantitative Analysis of Ablation Results
+* **The Traditional Sequential Baseline** selects a long, slender hull (LOA = 132.4m, Beam = 18.5m) to minimize hydrodynamic drag. However, because it keeps plate thickness at the baseline 14.5 mm, **the hull structurally fails scantling and global bending loads** (0.1 years fatigue life) and **violates intact stability GM/L limits** under loading.
 * **The Partial Agentic workflow** co-optimizes scantling thickness dynamically, increasing the plate thickness to 25.0 mm to pass the DNV plate rule. However, it still selects the slender hull form and **violates the intact stability GM/L limit** (FAIL).
 * **The Full MCP-ShipForge (Ours) workflow** co-optimizes hull parameters dynamically. It selects a shorter, wider hull (LOA = 128.7m, Beam = 20.0m) to **guarantee stability compliance (PASS)**, resulting in a fully compliant, safe cargo ship that **saves 3.4% of the section structural weight** compared to the partial agentic design.
 
 ---
 
-## 5. LaTeX Code for Paper Integration
+## 8. LaTeX Code for Paper Integration
 
 The following LaTeX block is formatted to reproduce the ablation results table in a double-column IEEE/Elsevier paper template:
 
@@ -214,12 +431,61 @@ The following LaTeX block is formatted to reproduce the ablation results table i
 
 ---
 
-## 6. Installation & Execution Guide
+## 9. Codebase File Structure
 
-### 6.1 Prerequisites
+```
+ShipForge-MCP/
+├── pyproject.toml                     # Python package configurations
+├── requirements.txt                   # Dependency checklist
+├── README.md                          # Repository documentation
+├── .gitignore                         # Excluded folders list
+├── orchestrator/
+│   ├── agent.py                       # Agentic co-optimizer client
+│   ├── mcp_client.py                  # Standard JSON-RPC MCP connector
+│   └── optimization.py                # Latin Hypercube Sampling & Pareto solver
+├── servers/
+│   ├── mcp_hull_cfd/
+│   │   ├── server.py                  # CFD server runner
+│   │   ├── cfd_runner.py              # Holtrop-Mennen and RAO math
+│   │   └── hull_generator.py          # Series 60 geometry generator
+│   ├── mcp_rule_engine/
+│   │   ├── server.py                  # Rule check server
+│   │   ├── dnv_part3_ch1.py           # DNV scantlings rules solver
+│   │   └── dnv_stability.py           # DNV stability GM/L verification
+│   ├── mcp_structural_fea/
+│   │   ├── server.py                  # FEA server
+│   │   └── fea_runner.py              # Girder properties, combined stress and fatigue
+│   ├── mcp_fatigue_ml/
+│   │   ├── server.py                  # Fatigue ML server
+│   │   ├── surrogate_model.py         # GBR surrogate model training/caching
+│   │   └── weld_classifier.py         # Weld detail classifier lookup
+│   ├── mcp_material_db/
+│   │   ├── server.py                  # Material DB server
+│   │   ├── database.py                # SQLite materials.db initialization
+│   │   ├── sn_curves.py               # SQLite S-N curve lookup
+│   │   └── corrosion_model.py         # Corrosion degradation estimation
+│   └── mcp_report/
+│       ├── server.py                  # Report server
+│       ├── pdf_generator.py           # PDF report builder
+│       └── geometry_exporter.py       # NURBS IGES CAD exporter
+└── validation/
+    ├── generate_diagrams.py           # Pillow flowchart generator
+    ├── run_benchmarks.py              # Main validation & ablation runner
+    └── plots/                         # Generated figures
+        ├── surrogate_correlation.png  # ML correlation plot
+        ├── pareto_frontier.png        # Pareto frontier plot
+        ├── ablation_comparison.png    # Ablation study comparison bar plot
+        └── architecture_flowchart.png # Pillow flowchart plot
+```
+
+---
+
+## 10. Installation & Execution Guide
+
+### 10.1 Prerequisites
 Ensure you have **Python 3.9+** and git installed.
 
-### 6.2 Installation
+### 10.2 Installation
 Clone the repository and install the dependencies:
 ```bash
 git clone https://github.com/therajpoots/ShipForge-MCP.git
@@ -227,7 +493,7 @@ cd ShipForge-MCP
 pip install -r requirements.txt
 ```
 
-### 6.3 Database & ML Model Initialization
+### 10.3 Database & ML Model Initialization
 Before running the orchestrator, initialize the SQLite material database and pre-train the fatigue surrogate ML model:
 ```bash
 # Initialize SQLite Database
@@ -237,17 +503,20 @@ python servers/mcp_material_db/database.py
 python servers/mcp_fatigue_ml/surrogate_model.py
 ```
 
-### 6.4 Running the Benchmarking Suite
+### 10.4 Running the Benchmarking Suite
 Execute the comprehensive validation suite to generate the ablation metrics, LaTeX tables, and plots:
 ```bash
 python validation/run_benchmarks.py
 ```
-This script runs the LHS design evaluations and writes the three publication-ready plots to the `validation/plots/` directory:
-* `surrogate_correlation.png` (ML model accuracy correlation)
-* `pareto_frontier.png` (Co-optimization Pareto front)
-* `ablation_comparison.png` (Workflow ablation bar chart)
+This script runs the LHS design evaluations and writes the three publication-ready plots to the `validation/plots/` directory.
 
-### 6.5 Running the Agentic Orchestrator
+### 10.5 Running the Flowchart Generator
+Generate the high-resolution architecture diagram using Pillow:
+```bash
+python validation/generate_diagrams.py
+```
+
+### 10.6 Running the Agentic Orchestrator
 To execute the multi-agent LLM client and start the co-optimization agent:
 ```bash
 # Note: Ensure you have your LLM API keys configured in a .env file
