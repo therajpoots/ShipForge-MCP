@@ -1,0 +1,35 @@
+# MCP
+mcp>=1.0.0
+
+# LLM
+openai>=1.0.0
+
+# CFD post-processing
+pyfoam>=0.6.9
+
+# Geometry
+rhino3dm>=8.0.0
+
+# FEA / mesh
+pygmsh>=7.1.17
+meshio>=5.3.4
+
+# Machine learning
+scikit-learn>=1.3.0
+torch>=2.0.0
+torchvision>=0.15.0
+onnxruntime>=1.16.0
+
+# Scientific computing
+numpy>=1.24.0
+scipy>=1.11.0
+pandas>=2.0.0
+
+# Visualization & reporting
+matplotlib>=3.7.0
+plotly>=5.15.0
+reportlab>=4.0.0
+
+# Utilities
+pyyaml>=6.0
+joblib>=1.3.0

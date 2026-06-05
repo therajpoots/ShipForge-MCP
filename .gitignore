@@ -1,0 +1,28 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.*
+
+# Local test outputs (keep plots folder but ignore local CAD/PDF runs)
+servers/mcp_report/reports/*.pdf
+servers/mcp_report/reports/*.json
+servers/mcp_hull_cfd/meshes/*.stl
+servers/mcp_hull_cfd/meshes/*.igs
+servers/mcp_structural_fea/models/*.json
