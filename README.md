@@ -90,6 +90,10 @@ The engineering lifecycle of a marine vessel has traditionally been sequential. 
 +----------------------+           +----------------------+           +----------------------+
 ```
 
+Here is the high-resolution architecture flowchart of the system:
+
+![MCP-ShipForge Architecture Flowchart](validation/plots/architecture_flowchart.png)
+
 ---
 
 ## 2. NAVAL ARCHITECTURE & HYDRODYNAMICS FOUNDATIONS
@@ -159,7 +163,7 @@ Heave RAO ($m/m$) and pitch RAO ($deg/m$) are modeled as:
 $$RAO_{heave} = 1.2 \cdot e^{-\left(\frac{\Lambda - 1.1}{0.4}\right)^2} \cdot |\cos(\theta_{heading})|$$
 $$RAO_{pitch} = 1.8 \cdot e^{-\left(\frac{\Lambda - 0.95}{0.3}\right)^2} \cdot |\cos(\theta_{heading})|$$
 
-Where $	heta_{heading}$ is the wave heading relative to the vessel ($180^\circ$ represents head seas). The vertical acceleration amplitude $a_z$ is:
+Where $\theta_{heading}$ is the wave heading relative to the vessel ($180^\circ$ represents head seas). The vertical acceleration amplitude $a_z$ is:
 
 $$a_z = \frac{H_s}{2} \cdot RAO_{heave} \cdot \omega^2$$
 $$\omega = \frac{2\pi}{T_{wave}}$$
@@ -426,6 +430,51 @@ The LLM Agentic loop runs in three phases:
 1. **LHS Sampling Phase**: Evaluates a design space population.
 2. **Dynamic Plate Sizing Loop**: Queries rule engines to size plates to meet local pressures, updates section properties, and checks FEA and stability.
 3. **Pareto Sorting Phase**: Selects the non-dominated Pareto front, resolving trade-offs between drag, weight, and safety.
+
+---
+
+## 3. OPTIMIZATION METHODOLOGY & SYSTEM WORKFLOW
+
+MCP-ShipForge uses a two-stage co-optimization methodology:
+1. **LHS Exploration**: The design space (LOA, Beam, Draft, block coefficient $Cb$, bow type) is mapped using Latin Hypercube Sampling (LHS).
+2. **Dynamic Plate Dimensioning & Pareto Front Evaluation**: Each candidate is dynamically sized using DNV scantling equations ($t_{plate} = \lceil t_{pressure} \times 1.12 \rceil$) to ensure local pressure checks pass. We then run finite element girder checks and metacentric stability evaluations.
+3. **Non-dominated sorting** is applied to identify the Pareto-optimal designs across three competing objectives:
+   $$\text{Minimize } f_1(x) = \text{Hydrodynamic Drag (kN)}$$
+   $$\text{Minimize } f_2(x) = \text{Structural Weight index (kg/m}^2\text{)}$$
+   $$\text{Minimize } f_3(x) = \text{Cyclic Fatigue Damage Index } (\frac{1}{N})$$
+   $$\text{Subject to: } \text{Displacement } \Delta \ge 10,000 \text{ m}^3, \quad GM/L \ge 0.033, \quad \sigma_{hotspot}/\sigma_{yield} \le 0.85$$
+
+The dynamic workflow of the co-optimization loop is detailed in the flowchart below:
+
+```mermaid
+flowchart TD
+    %% Define Node Styles
+    classDef start_end fill:#1E293B,stroke:#475569,stroke-width:2px,color:#fff;
+    classDef process fill:#0F172A,stroke:#64748B,stroke-width:2px,color:#fff;
+    classDef rule fill:#78350F,stroke:#D97706,stroke-width:2px,color:#fff;
+    classDef fea fill:#7F1D1D,stroke:#DC2626,stroke-width:2px,color:#fff;
+    classDef decision fill:#1E3A8A,stroke:#3B82F6,stroke-width:2px,color:#fff;
+
+    Start([Start Optimization Loop]):::start_end --> LHS[1. Latin Hypercube Sampling: Generate LOA, Beam, Draft, Cb, Bow]:::process
+    LHS --> CFD[2. Hull CFD Server: Run resistance evaluations]:::process
+    CFD --> RulePress[3. Rule Engine: Calculate bottom design pressure P_design]:::rule
+    RulePress --> RuleThick[4. Rule Engine: Calculate required scantling thickness req_t]:::rule
+    RuleThick --> Dim[5. Dynamic Sizing: Settle actual plate thickness actual_t = ceil req_t * 1.12]:::process
+    Dim --> FEAProps[6. FEA Server: Calculate section properties cross area, Iy, Z_bottom]:::fea
+    FEAProps --> FEAStress[7. FEA Server: Compute global and local bending stresses]:::fea
+    FEAStress --> Hotspot[8. FEA Server: Calculate hotspot combined stress = 1.8 * global + local]:::fea
+    Hotspot --> MLFatigue[9. Fatigue ML Server: Predict fatigue life cycles_to_failure via cached GBR]:::process
+    MLFatigue --> Damage[10. Compute Fatigue Damage Index: 1e7 / cycles_to_failure]:::process
+    Damage --> Stability[11. Rule Engine: Run intact stability check GM/LOA]:::rule
+    Stability --> Constrain{12. Verify Constraints:<br/>GM/LOA >= 0.033 &<br/>FEA stress utilization <= 0.85 &<br/>Displacement >= 10,000 m3}:::decision
+    Constrain -- Pass --> Feasible[Add to feasible design population]:::process
+    Constrain -- Fail --> Infeasible[Mark as infeasible configuration]:::process
+    Feasible --> Pareto[13. Perform non-dominated Pareto sorting: Drag vs Weight vs Fatigue]:::process
+    Infeasible --> Pareto
+    Pareto --> Select[14. Select optimal design: mcp_best]:::process
+    Select --> PDF[15. Report Server: Export IGES CAD file & generate ReportLab PDF]:::process
+    PDF --> End([End Optimization Loop]):::start_end
+```
 
 ---
 
@@ -2063,8 +2112,12 @@ The GBR surrogate model was benchmarked against the raw SQLite S-N curve calcula
 * **ML Surrogate Inference Latency**: **`0.48 ms` / query**
 * **Inference Speed**: When query calls are vector-batched (predicting all 100 configurations in a single model call), the surrogate offers an **25x to 50x speedup** over raw SQLite loops.
 
+Here is the validation accuracy correlation plot for the GBR fatigue surrogate showing predicted vs. actual fatigue life:
+
+![ML Surrogate Accuracy Correlation](validation/plots/surrogate_correlation.png)
+
 ### 8.2 Workflow Ablation Analysis
-We compared the three workflows under the Handymax brief (target displacement $\ge 10,000	ext{ m}^3$):
+We compared the three workflows under the Handymax brief (target displacement $\ge 10,000\text{ m}^3$):
 1. **Traditional Sequential (Baseline)**: Optimizes hull shape for minimum drag first, assuming a fixed baseline plate thickness of 14.5 mm. Checks constraints at the end.
 2. **Partial Agentic (Hydro only)**: Co-optimizes drag and scantlings dynamically to ensure DNV rule thickness is met, but ignores intact stability and cyclic fatigue constraints during hull form optimization.
 3. **Full MCP-ShipForge (Ours)**: Multi-agent co-optimization looping hydrodynamics (CFD), scantling dimensions, intact stability (DNV rules), global structural strength (FEA), and cyclic fatigue (ML surrogate) simultaneously.
@@ -2087,6 +2140,52 @@ The benchmark results are summarized in the table below:
 * **The Partial Agentic workflow** co-optimizes scantling thickness dynamically, increasing the plate thickness to 25.0 mm to pass the DNV plate rule. However, it still selects the slender hull form and **violates the intact stability GM/L limit** (FAIL).
 * **The Full MCP-ShipForge (Ours) workflow** co-optimizes hull parameters dynamically. It selects a shorter, wider hull (LOA = 128.7m, Beam = 20.0m) to **guarantee stability compliance (PASS)**, resulting in a fully compliant, safe cargo ship that **saves 3.4% of the section structural weight** compared to the partial agentic design.
 
+Below is the workflow comparison bar chart showing the normalized scores across key metrics for the three design workflows:
+
+![Workflow Ablation Comparison](validation/plots/ablation_comparison.png)
+
+To visually compare the optimization scopes and constraints checked in these three workflows, see the flowchart below:
+
+```mermaid
+flowchart TD
+    %% Styling
+    classDef baseline fill:#334155,stroke:#475569,stroke-width:2px,color:#fff;
+    classDef partial fill:#7C2D12,stroke:#9A3412,stroke-width:2px,color:#fff;
+    classDef ours fill:#064E3B,stroke:#0F766E,stroke-width:2px,color:#fff;
+    classDef fail fill:#7F1D1D,stroke:#B91C1C,stroke-width:2px,color:#fff;
+    classDef pass fill:#064E3B,stroke:#059669,stroke-width:2px,color:#fff;
+
+    subgraph SEQ [Traditional Sequential Baseline]
+        S1[Hydro Optimization: LOA/Beam/Draft]:::baseline --> S2[Set Fixed Scantling: 14.5 mm]:::baseline
+        S2 --> S3[Post-Design Rule & Stability Check]:::baseline
+        S3 --> S_FailScant{DNV Plate Rules:<br/>FAIL}:::fail
+        S3 --> S_FailStab{Stability GM/L:<br/>FAIL}:::fail
+        S3 --> S_FailFatigue{Fatigue Life:<br/>0.1 Years - FAIL}:::fail
+    end
+
+    subgraph PART [Partial Agentic Workflow]
+        P1[Co-Optimize Hydro & Scantling Thickness]:::partial --> P2[Increase Plate to 25.0 mm]:::partial
+        P2 --> P3[Post-Design Stability & Fatigue Check]:::partial
+        P3 --> P_PassScant{DNV Plate Rules:<br/>PASS}:::pass
+        P3 --> P_FailStab{Stability GM/L:<br/>FAIL}:::fail
+        P3 --> P_PassFatigue{Fatigue Life:<br/>6.0 Years - PASS}:::pass
+    end
+
+    subgraph OURS [Full MCP-ShipForge Co-Optimization]
+        O1[Dynamic Agentic Loop: CFD + Rules + Stability + FEA + Fatigue ML]:::ours --> O2[Adjust Hull Dimensions & Scantlings Dynamically]:::ours
+        O2 --> O3[Select Optimally Balanced Design: LOA=128.7m, Beam=20.0m, Plate=22.8mm]:::ours
+        O3 --> O4[Verify Multi-Disciplinary Compliance]:::ours
+        O4 --> O_PassScant{DNV Plate Rules:<br/>PASS}:::pass
+        O4 --> O_PassStab{Stability GM/L:<br/>PASS}:::pass
+        O4 --> O_PassFatigue{Fatigue Life:<br/>4.0 Years - PASS}:::pass
+        O4 --> O_SaveWeight[Weight Saved: 3.4% vs Partial]:::pass
+    end
+```
+
+Here is the multi-objective Pareto Frontier generated from the Full co-optimization loop showing the trade-off designs between structural weight, total resistance, and fatigue life:
+
+![Multi-Objective Optimization Pareto Frontier](validation/plots/pareto_frontier.png)
+
 ### 8.3 LaTeX Tables for Paper Publication
 The following LaTeX block is formatted to reproduce the ablation results table in a double-column IEEE/Elsevier paper template:
 
@@ -2094,22 +2193,22 @@ The following LaTeX block is formatted to reproduce the ablation results table i
 %==================================================
 % LaTeX Table Code for Paper
 %==================================================
-egin{table}[h!]
+\begin{table}[h!]
 \centering
 \caption{Comparative ablation analysis of ship design workflows under the Handymax brief.}
 \label{tab:ablation_results}
-egin{tabular}{lccc}
+\begin{tabular}{lccc}
 \hline
- Vessel Metric & Sequential (Baseline) & Partial Agentic & Full MCP-ShipForge (Ours) \
+ Vessel Metric & Sequential (Baseline) & Partial Agentic & Full MCP-ShipForge (Ours) \\
 \hline
- Vessel LOA (m) & 132.4 & 132.4 & 128.7 \
- Vessel Beam (m) & 18.5 & 18.5 & 20.0 \
- Vessel Draft (m) & 6.8 & 6.8 & 6.0 \
- Total Drag (kN) & 222.3 & 222.3 & 231.6 \
- Section Weight (kg/m2) & 113.8 & 235.5 & 227.6 \
- Fatigue Life (Years) & 0.1 & 6.0 & 4.0 \
- DNV Rule Scantling & FAIL & PASS & PASS \
- Stability Compliance & FAIL & FAIL & PASS \
+ Vessel LOA (m) & 132.4 & 132.4 & 128.7 \\
+ Vessel Beam (m) & 18.5 & 18.5 & 20.0 \\
+ Vessel Draft (m) & 6.8 & 6.8 & 6.0 \\
+ Total Drag (kN) & 222.3 & 222.3 & 231.6 \\
+ Section Weight (kg/m2) & 113.8 & 235.5 & 227.6 \\
+ Fatigue Life (Years) & 0.1 & 6.0 & 4.0 \\
+ DNV Rule Scantling & FAIL & PASS & PASS \\
+ Stability Compliance & FAIL & FAIL & PASS \\
 \hline
 \end{tabular}
 \end{table}
