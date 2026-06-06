@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NAVAL_OS v2.4 | 3D Hull CAD</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: linear-gradient(to bottom, rgba(30, 41, 59, 0.8), rgba(10, 12, 16, 0.9));
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .glow-accent {
+            box-shadow: 0 0 15px rgba(76, 215, 246, 0.2);
+        }
+        .glow-border:hover {
+            border-color: rgba(76, 215, 246, 0.5);
+            box-shadow: 0 0 10px rgba(76, 215, 246, 0.3);
+        }
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4cd7f6;
+            border-radius: 10px;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed-dim": "#4cd7f6",
+                        "outline-variant": "#3d494c",
+                        "on-tertiary-container": "#3a3c40",
+                        "on-secondary": "#263143",
+                        "on-primary-fixed": "#001f26",
+                        "on-tertiary-fixed-variant": "#45474b",
+                        "tertiary": "#c6c6cc",
+                        "on-secondary-container": "#aeb9d0",
+                        "tertiary-container": "#a5a6ac",
+                        "secondary-fixed-dim": "#bcc7de",
+                        "on-primary": "#003640",
+                        "tertiary-fixed": "#e2e2e8",
+                        "on-tertiary": "#2f3035",
+                        "on-primary-fixed-variant": "#004e5c",
+                        "secondary": "#bcc7de",
+                        "surface-container": "#1b2122",
+                        "on-secondary-fixed": "#111c2d",
+                        "surface-tint": "#4cd7f6",
+                        "surface-bright": "#343a3c",
+                        "error": "#ffb4ab",
+                        "secondary-container": "#3e495d",
+                        "on-error": "#690005",
+                        "inverse-primary": "#00687a",
+                        "surface-container-lowest": "#090f11",
+                        "surface": "#0e1416",
+                        "on-surface-variant": "#bcc9cd",
+                        "inverse-surface": "#dee3e6",
+                        "on-surface": "#dee3e6",
+                        "on-background": "#dee3e6",
+                        "surface-container-highest": "#303638",
+                        "surface-container-low": "#171d1e",
+                        "outline": "#869397",
+                        "surface-variant": "#303638",
+                        "error-container": "#93000a",
+                        "surface-container-high": "#252b2d",
+                        "primary-container": "#06b6d4",
+                        "on-secondary-fixed-variant": "#3c475a",
+                        "on-primary-container": "#00424f",
+                        "tertiary-fixed-dim": "#c6c6cc",
+                        "inverse-on-surface": "#2b3133",
+                        "surface-dim": "#0e1416",
+                        "on-error-container": "#ffdad6",
+                        "on-tertiary-fixed": "#1a1c20",
+                        "background": "#0e1416",
+                        "secondary-fixed": "#d8e3fb",
+                        "primary-fixed": "#acedff",
+                        "primary": "#4cd7f6"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "panel-gap": "1rem",
+                        "inner-padding": "1.25rem",
+                        "gutter": "1.5rem",
+                        "container-padding": "2rem"
+                    },
+                    "fontFamily": {
+                        "label-caps": ["JetBrains Mono"],
+                        "body-md": ["Outfit"],
+                        "headline-xl": ["Outfit"],
+                        "metric-sm": ["JetBrains Mono"],
+                        "metric-lg": ["JetBrains Mono"],
+                        "headline-lg-mobile": ["Outfit"],
+                        "headline-lg": ["Outfit"]
+                    },
+                    "fontSize": {
+                        "label-caps": ["11px", {"lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-xl": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "metric-sm": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+                        "metric-lg": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                        "headline-lg-mobile": ["22px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen flex flex-col overflow-hidden">
+<!-- TopNavBar -->
+<header class="w-full top-0 sticky bg-surface/80 backdrop-blur-md border-b border-white/10 shadow-[0_0_15px_rgba(76,215,246,0.1)] z-50">
+<div class="flex justify-between items-center px-gutter py-4 w-full">
+<div class="flex items-center gap-8">
+<h1 class="font-headline-lg text-headline-lg font-bold text-primary tracking-tighter">NAVAL_OS v2.4</h1>
+<nav class="hidden md:flex gap-6">
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Dashboard</a>
+<a class="font-body-md text-body-md text-primary border-b-2 border-primary pb-1" href="#">Hull Library</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">CFD Solver</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Simulations</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 hover:bg-white/5 transition-all duration-300 active:scale-95">
+<span class="material-symbols-outlined text-primary">notifications</span>
+</button>
+<button class="p-2 hover:bg-white/5 transition-all duration-300 active:scale-95">
+<span class="material-symbols-outlined text-primary">settings</span>
+</button>
+<div class="w-10 h-10 bg-primary-container rounded-full overflow-hidden border border-primary/20">
+<img alt="Chief Engineer Profile" data-alt="A professional close-up portrait of a senior naval engineer in a high-tech environment. The lighting is cold and clinical, with subtle blue and cyan highlights reflecting off technical equipment in the background. The aesthetic is clean, modern, and high-performance, mirroring the professional naval CAD software theme." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAcMbhbVZTdKQZInfO72jIdL3FgMvXo6tMfioh8uD8xWvDddJrtr6KbskbgBfy77bgYI4dOO4v4OQF-HnW5EtGepEYEWHd4N5Q2gr1pLXI8alJpUDngMmn4KDk7_1AZ7HLeu0c1wEOwPWXwhZJ6wTSE1jKQAUppGvlzPesmnMlj7dNJBOYRK0cJhFv9fb2bRw5im8rxPExry2H_8OZz5-H6a28Ce5nq9eI3XVCYfyzhrtZEzx9Zc2tgMYyAYimQEMVSvS5CxUOWbfEW"/>
+</div>
+</div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<!-- SideNavBar -->
+<aside class="w-[300px] h-full sticky left-0 bg-gradient-to-b from-surface-container/80 to-surface-container-lowest/90 backdrop-blur-xl border-r border-white/10 shadow-2xl flex flex-col py-inner-padding z-40">
+<div class="px-6 mb-8">
+<div class="flex items-center gap-3 mb-1">
+<div class="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+<span class="font-headline-lg-mobile text-headline-lg-mobile text-primary font-bold">CFD_CORE_ALPHA</span>
+</div>
+<p class="font-label-caps text-label-caps text-outline-variant">Running: Hull_V12</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-4 px-6 py-4 bg-primary/10 text-primary border-l-4 border-primary-fixed-dim shadow-[0_0_10px_rgba(76,215,246,0.2)] font-label-caps text-label-caps" href="#">
+<span class="material-symbols-outlined">tune</span>
+<span>Parameters</span>
+</a>
+<a class="flex items-center gap-4 px-6 py-4 text-outline-variant hover:bg-primary/5 hover:text-primary transition-all duration-200 font-label-caps text-label-caps group" href="#">
+<span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">terminal</span>
+<span>Console</span>
+</a>
+<a class="flex items-center gap-4 px-6 py-4 text-outline-variant hover:bg-primary/5 hover:text-primary transition-all duration-200 font-label-caps text-label-caps group" href="#">
+<span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">layers</span>
+<span>Materials</span>
+</a>
+<a class="flex items-center gap-4 px-6 py-4 text-outline-variant hover:bg-primary/5 hover:text-primary transition-all duration-200 font-label-caps text-label-caps group" href="#">
+<span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">balance</span>
+<span>Stability</span>
+</a>
+<a class="flex items-center gap-4 px-6 py-4 text-outline-variant hover:bg-primary/5 hover:text-primary transition-all duration-200 font-label-caps text-label-caps group" href="#">
+<span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">package_2</span>
+<span>Payload</span>
+</a>
+</nav>
+<div class="mt-auto border-t border-white/5 pt-4 space-y-1">
+<a class="flex items-center gap-4 px-6 py-3 text-outline-variant hover:text-on-surface-variant transition-colors font-label-caps text-label-caps" href="#">
+<span class="material-symbols-outlined">help</span>
+<span>Support</span>
+</a>
+<a class="flex items-center gap-4 px-6 py-3 text-outline-variant hover:text-on-surface-variant transition-colors font-label-caps text-label-caps" href="#">
+<span class="material-symbols-outlined">history</span>
+<span>Logs</span>
+</a>
+</div>
+</aside>
+<!-- Main Content (CFD Canvas) -->
+<main class="flex-1 relative flex overflow-hidden">
+<!-- 3D Viewport -->
+<div class="absolute inset-0 bg-surface-container-lowest overflow-hidden">
+
+<!-- Coordinate Axis Overlay -->
+<div class="absolute bottom-6 left-6 flex flex-col gap-2 font-label-caps text-label-caps text-primary/50">
+<div class="flex items-center gap-2">
+<div class="w-4 h-[1px] bg-red-500"></div> <span>X-AXIS</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-4 h-[1px] bg-green-500"></div> <span>Y-AXIS</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-4 h-[1px] bg-blue-500"></div> <span>Z-AXIS</span>
+</div>
+</div>
+<!-- HUD Overlays -->
+<div class="absolute top-6 left-6 flex gap-4">
+<div class="glass-panel px-4 py-2 flex items-center gap-3 border border-primary/20">
+<span class="font-label-caps text-label-caps text-primary">STATION 14</span>
+<div class="w-[1px] h-4 bg-white/10"></div>
+<span class="font-metric-sm text-metric-sm text-on-surface">LOC: 124.5m</span>
+</div>
+</div>
+</div>
+<!-- Toolbar Overlay -->
+<div class="absolute bottom-6 left-1/2 -translate-x-1/2 glass-panel p-2 flex gap-1 rounded-lg border border-primary/20 shadow-2xl">
+<button class="p-3 text-primary-fixed-dim hover:bg-primary/10 transition-colors rounded-lg flex flex-col items-center gap-1 group">
+<span class="material-symbols-outlined">polyline</span>
+<span class="text-[9px] font-label-caps">MESH</span>
+</button>
+<button class="p-3 text-primary-fixed-dim bg-primary/20 hover:bg-primary/10 transition-colors rounded-lg flex flex-col items-center gap-1 group">
+<span class="material-symbols-outlined">grid_view</span>
+<span class="text-[9px] font-label-caps">STATIONS</span>
+</button>
+<button class="p-3 text-primary-fixed-dim hover:bg-primary/10 transition-colors rounded-lg flex flex-col items-center gap-1 group">
+<span class="material-symbols-outlined">visibility</span>
+<span class="text-[9px] font-label-caps">HIDE</span>
+<div class="w-[1px] h-10 bg-white/10 mx-2 self-center"></div>
+</button><button class="p-3 text-primary-fixed-dim hover:bg-primary/10 transition-colors rounded-lg flex flex-col items-center gap-1 group">
+<span class="material-symbols-outlined">zoom_in</span>
+<span class="text-[9px] font-label-caps">FIT</span>
+</button>
+</div>
+<!-- Left Controls HUD (Contextual) -->
+<div class="absolute top-24 left-6 w-64 space-y-4 pointer-events-auto">
+<div class="glass-panel p-4 rounded-lg border border-primary/10">
+<h3 class="font-label-caps text-label-caps text-primary mb-4">MESH QUALITY</h3>
+<div class="space-y-4">
+<div>
+<div class="flex justify-between font-label-caps text-[10px] mb-1">
+<span class="text-outline-variant">POLY COUNT</span>
+<span class="text-on-surface">2.4M</span>
+</div>
+<div class="h-1 bg-white/5 relative">
+<div class="absolute left-0 top-0 h-full w-[75%] bg-primary shadow-[0_0_8px_rgba(76,215,246,0.6)]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between font-label-caps text-[10px] mb-1 text-outline-variant">
+<span>SMOOTHING</span>
+<span>82%</span>
+</div>
+<input class="w-full accent-primary bg-white/10 h-1 appearance-none cursor-pointer" type="range"/>
+</div>
+</div>
+</div>
+<div class="glass-panel p-4 rounded-lg border border-primary/10">
+<h3 class="font-label-caps text-label-caps text-primary mb-4">VISIBILITY TOGGLES</h3>
+<div class="space-y-3">
+<label class="flex items-center justify-between cursor-pointer group">
+<span class="font-label-caps text-[11px] text-on-surface group-hover:text-primary transition-colors">Waterline Planes</span>
+<div class="w-8 h-4 bg-primary/20 rounded-full relative">
+<div class="absolute right-1 top-1 w-2 h-2 bg-primary rounded-full"></div>
+</div>
+</label>
+<label class="flex items-center justify-between cursor-pointer group">
+<span class="font-label-caps text-[11px] text-on-surface group-hover:text-primary transition-colors">Curvature Map</span>
+<div class="w-8 h-4 bg-white/10 rounded-full relative">
+<div class="absolute left-1 top-1 w-2 h-2 bg-outline rounded-full"></div>
+</div>
+</label>
+<label class="flex items-center justify-between cursor-pointer group">
+<span class="font-label-caps text-[11px] text-on-surface group-hover:text-primary transition-colors">Surface Normals</span>
+<div class="w-8 h-4 bg-white/10 rounded-full relative">
+<div class="absolute left-1 top-1 w-2 h-2 bg-outline rounded-full"></div>
+</div>
+</label>
+</div>
+</div>
+</div>
+<!-- Right Projections Panel -->
+<aside class="w-[350px] h-full bg-surface-container/40 backdrop-blur-md border-l border-white/10 p-inner-padding space-y-6 overflow-y-auto">
+<h2 class="font-label-caps text-label-caps text-primary mb-6">PROJECTION ANALYSIS</h2>
+<!-- Cross Section Graph -->
+<div class="glass-panel p-4 rounded-lg border border-primary/10 space-y-4">
+<div class="flex justify-between items-center">
+<span class="font-label-caps text-[11px] text-on-surface">STATION SECTION</span>
+<span class="material-symbols-outlined text-primary text-sm">fullscreen</span>
+</div>
+<div class="aspect-[4/3] w-full relative bg-black/20 rounded border border-white/5 overflow-hidden">
+<div class="absolute inset-0 flex items-center justify-center">
+
+</div>
+</div>
+<div class="flex justify-between font-metric-sm text-[10px] text-outline-variant">
+<span>Z: 0.0m</span>
+<span>AREA: 42.8m²</span>
+<span>Y: ±12m</span>
+</div>
+</div>
+<!-- Longitudinal Curvature -->
+<div class="glass-panel p-4 rounded-lg border border-primary/10 space-y-4">
+<div class="flex justify-between items-center">
+<span class="font-label-caps text-[11px] text-on-surface">LONGITUDINAL FLOW</span>
+<span class="material-symbols-outlined text-primary text-sm">trending_up</span>
+</div>
+<div class="aspect-[16/6] w-full relative bg-black/20 rounded border border-white/5 overflow-hidden">
+<div class="absolute inset-0">
+
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-1">
+<span class="font-label-caps text-[9px] text-outline-variant block uppercase">Drag Coeff</span>
+<span class="font-metric-lg text-metric-lg text-on-surface">0.024</span>
+</div>
+<div class="space-y-1">
+<span class="font-label-caps text-[9px] text-outline-variant block uppercase">Flow Velocity</span>
+<span class="font-metric-lg text-metric-lg text-primary">12.4<span class="text-sm ml-1 text-outline-variant">kn</span></span>
+</div>
+</div>
+</div>
+<!-- Displacement Stats -->
+<div class="space-y-3">
+<h3 class="font-label-caps text-[10px] text-outline-variant">HYDROSTATIC SUMMARY</h3>
+<div class="grid grid-cols-2 gap-2">
+<div class="glass-panel p-3 border-l-2 border-primary">
+<p class="text-[9px] font-label-caps text-outline-variant mb-1">DISPLACEMENT</p>
+<p class="font-metric-sm text-on-surface">14,250 t</p>
+</div>
+<div class="glass-panel p-3 border-l-2 border-on-surface-variant">
+<p class="text-[9px] font-label-caps text-outline-variant mb-1">LCB FROM FP</p>
+<p class="font-metric-sm text-on-surface">88.24 m</p>
+</div>
+</div>
+</div>
+<!-- Warnings/Alerts -->
+<div class="p-4 rounded border border-error/20 bg-error/5 flex items-start gap-3">
+<span class="material-symbols-outlined text-error text-md">warning</span>
+<div>
+<p class="font-label-caps text-[10px] text-error font-bold mb-1">CURVATURE EXCEPTION</p>
+<p class="text-[11px] text-on-surface-variant leading-tight">High Gaussian curvature detected at Station 22. Adjust control points to maintain laminar flow.</p>
+</div>
+</div>
+</aside>
+</main>
+</div>
+<!-- Micro-interactions Script -->
+<script>
+        // Simple hover effects for 3D UI interaction simulation
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('mouseenter', () => {
+                const icon = btn.querySelector('.material-symbols-outlined');
+                if(icon) icon.style.fontVariationSettings = "'FILL' 1";
+            });
+            btn.addEventListener('mouseleave', () => {
+                const icon = btn.querySelector('.material-symbols-outlined');
+                if(icon) icon.style.fontVariationSettings = "'FILL' 0";
+            });
+        });
+
+        // Toggle handling for the Sidebar/HUD elements
+        const sideNav = document.querySelector('aside');
+        const mainHUD = document.querySelectorAll('.glass-panel');
+
+        // Atmospheric interaction: subtle movement follow
+        document.addEventListener('mousemove', (e) => {
+            const x = (e.clientX / window.innerWidth - 0.5) * 5;
+            const y = (e.clientY / window.innerHeight - 0.5) * 5;
+            
+            // Subtle tilt for the HUD panels
+            mainHUD.forEach(panel => {
+                panel.style.transform = `perspective(1000px) rotateX(${-y}deg) rotateY(${x}deg)`;
+            });
+        });
+    </script>
+</body></html>

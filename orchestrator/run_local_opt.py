@@ -71,13 +71,28 @@ def write_live_update(evaluated, total, params):
         pareto = []
     pareto_ids = {d["design_id"] for d in pareto}
 
-    # Best so far: minimum resistance among all evaluated
-    best = min(evaluated, key=lambda x: x["cfd"]["total_resistance_kN"]) if evaluated else None
-    # Sequential baseline: ignores stability, just picks minimum drag
-    seq_baseline = min(evaluated, key=lambda x: x["cfd"]["total_resistance_kN"]) if evaluated else None
-    # MCP best: must pass stability + FEA
-    feasible = [d for d in pareto if d["stability"]["passed"] and d["fea"]["passed"]]
-    mcp_best = min(feasible, key=lambda x: x["cfd"]["total_resistance_kN"]) if feasible else best
+    # Sequential baseline: picks the minimum drag design in the CARGO population (ignores stability)
+    seq_baseline = min(cargo, key=lambda x: x["cfd"]["total_resistance_kN"]) if cargo else (
+                   min(evaluated, key=lambda x: x["cfd"]["total_resistance_kN"]) if evaluated else None)
+
+    # MCP best: must pass intact stability, FEA, and scantling rules in the cargo population
+    feasible_cargo = [d for d in cargo if d["stability"]["passed"] and d["fea"]["passed"] and d["scantlings"]["passed"]]
+    if feasible_cargo:
+        try:
+            pareto_feasible = compute_pareto_front(feasible_cargo)
+            mcp_best = min(pareto_feasible, key=lambda x: x["cfd"]["total_resistance_kN"])
+        except Exception:
+            mcp_best = min(feasible_cargo, key=lambda x: x["cfd"]["total_resistance_kN"])
+    else:
+        # Fallback hierarchy: select best that passes stability, then FEA, then fallback to sequential baseline
+        passing_stability = [d for d in cargo if d["stability"]["passed"]]
+        if passing_stability:
+            mcp_best = min(passing_stability, key=lambda x: x["cfd"]["total_resistance_kN"])
+        else:
+            mcp_best = seq_baseline
+
+    # Best so far is the overall best cargo design in terms of resistance
+    best = seq_baseline
 
     def design_entry(d):
         return {
@@ -294,11 +309,19 @@ def main():
     print(f"  Pareto-optimal designs: {len(pareto_front)}")
 
     # Best design: least drag among Pareto-feasible designs that pass stability + FEA
-    feasible = [d for d in pareto_front if d["stability"]["passed"] and d["fea"]["passed"]]
-    if not feasible:
-        feasible = pareto_front  # fallback
-
-    best = min(feasible, key=lambda x: x["cfd"]["total_resistance_kN"])
+    feasible = [d for d in cargo_designs if d["stability"]["passed"] and d["fea"]["passed"] and d["scantlings"]["passed"]]
+    if feasible:
+        try:
+            pareto_feasible = compute_pareto_front(feasible)
+            best = min(pareto_feasible, key=lambda x: x["cfd"]["total_resistance_kN"])
+        except Exception:
+            best = min(feasible, key=lambda x: x["cfd"]["total_resistance_kN"])
+    else:
+        passing_stability = [d for d in cargo_designs if d["stability"]["passed"]]
+        if passing_stability:
+            best = min(passing_stability, key=lambda x: x["cfd"]["total_resistance_kN"])
+        else:
+            best = min(cargo_designs, key=lambda x: x["cfd"]["total_resistance_kN"])
 
     # -- OUTPUT SUMMARY ------------------------------------------------------
     print("\n" + "=" * 65)

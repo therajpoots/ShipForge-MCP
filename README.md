@@ -950,3 +950,51 @@ To launch the orchestrator agent and start the co-optimization loop via the comm
 # Set your LLM API keys in a local .env file
 python orchestrator/agent.py
 ```
+
+## 12. VISUAL VALIDATION & REVOLUTIONIZED CFD FLOW SOLVER
+
+To provide an industry-grade simulation experience, the ShipForge CFD Flow Solver tab and co-optimization client have been thoroughly polished with high-fidelity visual assets, a modern bento-style vertical split layout, and realistic fluid mechanics overlays.
+
+### 12.1 Layout Restructuring & Contrast Enhancements
+* **Top Half: Aspect-Square Viewports**: The Sequential Baseline and MCP-ShipForge Optimal viewports are rendered side-by-side as perfect 1:1 squares, automatically expanding to fill the screen width without vertical distortion.
+* **Bottom Half: Bento Dashboard**: A horizontal grid of six glassmorphic columns (`.cfd-glass` with backdrop saturation and blur filters) hosts all simulation modes, timeline seekbars, performance indicators, and solver telemetry.
+* **Muted Text Fixes**: Muted gray `text-outline` labels have been upgraded to high-contrast `text-slate-200` and `text-slate-400` classes, providing sharp, comfortable readability on dark backdrops.
+
+### 12.2 Unsteady Wake Physics & Force Vector Overlays
+* **Von Karman Vortex Street**: Implemented time-dependent transverse wave oscillations ($\sin(\phi - 0.08x)$) and random velocity fluctuations downstream of the hull ($x > 0$), resulting in realistic wake shedding and turbulent eddy animations.
+* **Flickering Boundary Layer**: Traced a translucent orange boundary layer envelope along the hull surface that grows thicker towards the stern ($\delta \propto x \cdot Re_x^{-0.2}$) and features live shear instability oscillations.
+* **Live Hull Force Arrows**: Overlayed colored force vectors reacting in real-time to speed sliders:
+  - **Bow Drag ($F_{\text{drag}}$)** in Red (pointing aft) with dynamic resistance labels.
+  - **Stern Suction ($F_{\text{suction}}$)** in Cyan (pointing forward).
+  - **Transverse Lift ($F_{\text{vortex}}$)** in Green (oscillating sideways in phase with vortex shedding).
+
+### 12.3 Co-Optimisation Run Fix & UI Integration
+* **DOM Crash Fix**: Resolved a frontend `TypeError: Cannot read properties of null (reading 'classList')` exception inside `startRun()` by placing the missing `#cmp-panel` and `#result-panel` containers into the Design Space HTML body.
+* **Real-time Results**: Hitting the `RUN CO-OPTIMISATION` button now successfully resets charts, fires the backend JSON-RPC pipeline, streams stdout to the Pipeline Monitor log textarea, and displays comparison cards once evaluations finish.
+
+### 12.4 Role of DeepSeek in ShipForge
+* **Conceptual LLM Backbone**: In the architecture flowchart, **DeepSeek** serves as the conceptual LLM client backend for the Agentic Orchestrator, demonstrating how multi-agent reasoning models call MCP tools to coordinate evaluations.
+* **Numerical Core**: In the active execution path, the actual local optimization loop is **100% numerical** (Latin Hypercube Sampling, Pareto Front search, Holtrop-Mennen empirical equations, and classification scantlings rules). It uses local surrogate models for fatigue calculations without requiring external API calls.
+
+### 12.5 Visual Proofs & Walkthroughs
+
+![CFD Solver Simulation Walkthrough](docs/images/cfd_walkthrough.webp)
+
+*Figure 12.1: Real-time walkthrough of the redesigned CFD Flow Solver demonstrating side-by-side squares, bento controls, and wake physics.*
+
+![CFD Pressure Contours & Force Vectors](docs/images/cfd_pressure_mode.png)
+
+*Figure 12.2: CFD Pressure Mode view showing boundary layer outlines, bow drag, stern thrust, and oscillating lift force vectors.*
+
+![CFD Velocity Field & Wake Particles](docs/images/cfd_velocity_mode.png)
+
+*Figure 12.3: CFD Velocity Mode view showing velocity grid arrows and color-coded particle paths with turbulent wake eddies.*
+
+![Co-Optimisation Dashboard Results](docs/images/design_space_completed.png)
+
+*Figure 12.4: Completed co-optimization pipeline showing Pareto front chart, speed resistance curves, and comparison results cards.*
+
+![Co-Optimisation Run Animation](docs/images/design_space_run.webp)
+
+*Figure 12.5: Interactive co-optimization simulation showing real-time LHS evaluations, logs, and live progress updating.*
+
