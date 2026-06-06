@@ -96,7 +96,7 @@ $$R_f = \frac{1}{2} \rho S V^2 C_f (1 + k_1)$$
 Where:
 * $\rho$: Density of seawater ($1025 \text{ kg/m}^3$)
 * $S$: Wetted surface area of the hull girder ($\text{m}^2$)
-* $V$: Speed in meters per second ($V = \text{speed\_knots} \times 0.51444$)
+* $V$: Speed in meters per second ($V = \text{speed (knots)} \times 0.51444$)
 * $C_f$: Frictional resistance coefficient
 
 The frictional resistance coefficient $C_f$ is calculated from the Reynolds number $Re$:
