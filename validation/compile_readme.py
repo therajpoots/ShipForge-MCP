@@ -62,35 +62,28 @@ The engineering lifecycle of a marine vessel has traditionally been sequential. 
 
 **MCP-ShipForge** addresses this multidisciplinary gap by wrapping naval architecture tools in standardized **Model Context Protocol (MCP)** servers. The orchestrator uses JSON-RPC to query these servers dynamically, allowing co-optimization of hull parameters, scantlings, structural strength, materials, stability, and fatigue lifecycles.
 
-```
-                                  +-----------------------+
-                                  |  AGENTIC ORCHESTRATOR |
-                                  | (Client Control Loop) |
-                                  +-----------+-----------+
-                                              |
-                                              | JSON-RPC over stdio
-                                              v
-           +----------------------------------+----------------------------------+
-           |                                  |                                  |
-           v                                  v                                  v
-+----------------------+           +----------------------+           +----------------------+
-|     mcp_hull_cfd     |           |   mcp_rule_engine    |           |  mcp_structural_fea  |
-| • Holtrop-Mennen     |           | • Bottom Scantlings  |           | • Box Girder Solvers |
-| • Series 60 STL      |           | • Section Modulus    |           | • Hog/Sag Stress     |
-| • Wake Regression    |           | • Panel Buckling     |           | • Miner's Spectra    |
-| • Motion RAOs / MSI  |           | • GM Metacentric     |           | • Hotspot SCF        |
-+----------------------+           +----------------------+           +----------------------+
-           |                                  |                                  |
-           +----------------------------------+----------------------------------+
-                                              |
-           +----------------------------------+----------------------------------+
-           v                                  v                                  v
-+----------------------+           +----------------------+           +----------------------+
-|   mcp_material_db    |           |    mcp_fatigue_ml    |           |      mcp_report      |
-| • SQLite DB Backend  |           | • GBR Fatigue        |           | • PDF ReportLab      |
-| • S-N Curve Lookup   |           |   Surrogate (Cached) |           | • NURBS IGES CAD     |
-| • Corrosion Rates    |           | • Weld Classifier    |           | • Audit JSON Logs    |
-+----------------------+           +----------------------+           +----------------------+
+```mermaid
+flowchart TD
+    %% Node definitions
+    Orch["AGENTIC ORCHESTRATOR<br/>(Client Control Loop)"]:::client
+    CFD["mcp_hull_cfd<br/>• Holtrop-Mennen<br/>• Series 60 STL<br/>• Wake Regression<br/>• Motion RAOs / MSI"]:::server
+    Rule["mcp_rule_engine<br/>• Bottom Scantlings<br/>• Section Modulus<br/>• Panel Buckling<br/>• GM Metacentric"]:::server
+    FEA["mcp_structural_fea<br/>• Box Girder Solvers<br/>• Hog/Sag Stress<br/>• Miner's Spectra<br/>• Hotspot SCF"]:::server
+    Mat["mcp_material_db<br/>• SQLite DB Backend<br/>• S-N Curve Lookup<br/>• Corrosion Rates"]:::server
+    Fat["mcp_fatigue_ml<br/>• GBR Fatigue Surrogate (Cached)<br/>• Weld Classifier"]:::server
+    Rep["mcp_report<br/>• PDF ReportLab<br/>• NURBS IGES CAD<br/>• Audit JSON Logs"]:::server
+
+    %% Connections
+    Orch <--> |JSON-RPC over stdio| CFD
+    Orch <--> |JSON-RPC over stdio| Rule
+    Orch <--> |JSON-RPC over stdio| FEA
+    Orch <--> |JSON-RPC over stdio| Mat
+    Orch <--> |JSON-RPC over stdio| Fat
+    Orch <--> |JSON-RPC over stdio| Rep
+
+    %% Styling
+    classDef client fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#fff;
+    classDef server fill:#0f172a,stroke:#475569,stroke-width:2px,color:#fff;
 ```
 
 Here is the high-resolution architecture flowchart of the system:
@@ -267,22 +260,7 @@ Where:
 ### 4.1 Stiffened Box Girder Section Modulus Solvers
 The midship section is idealized as a multi-cell box girder to evaluate combined global and local stresses under environmental loads.
 
-```
-              <-------------- Beam (B) -------------->
-              +--------------------------------------+  ^
-              |   |   |   |   |   |   |   |   |   |  |  |  Deck Plating
-              |                                      |  |
-              |                                      |  |
-              |                                      |  |
-    Depth (D) | Side                                 |  | Side Shell Plating
-              | Plating                              |  |
-              |                                      |  |
-              |                                      |  v
-              +--------------------------------------+  v
-              |   |   |   |   |   |   |   |   |   |  |
-              +--------------------------------------+  Bottom Plating
-                  ^ Longitudinal Stiffeners (Spacing s)
-```
+![MCP-ShipForge Midship Section Box Girder Model](validation/plots/midship_section.png)
 
 The cross-sectional area $A$ is:
 
@@ -922,6 +900,53 @@ To launch the orchestrator agent and start the co-optimization loop via the comm
 # Set your LLM API keys in a local .env file
 python orchestrator/agent.py
 ```
+
+## 12. VISUAL VALIDATION & REVOLUTIONIZED CFD FLOW SOLVER
+
+To provide an industry-grade simulation experience, the ShipForge CFD Flow Solver tab and co-optimization client have been thoroughly polished with high-fidelity visual assets, a modern bento-style vertical split layout, and realistic fluid mechanics overlays.
+
+### 12.1 Layout Restructuring & Contrast Enhancements
+* **Top Half: Aspect-Square Viewports**: The Sequential Baseline and MCP-ShipForge Optimal viewports are rendered side-by-side as perfect 1:1 squares, automatically expanding to fill the screen width without vertical distortion.
+* **Bottom Half: Bento Dashboard**: A horizontal grid of six glassmorphic columns (`.cfd-glass` with backdrop saturation and blur filters) hosts all simulation modes, timeline seekbars, performance indicators, and solver telemetry.
+* **Muted Text Fixes**: Muted gray `text-outline` labels have been upgraded to high-contrast `text-slate-200` and `text-slate-400` classes, providing sharp, comfortable readability on dark backdrops.
+
+### 12.2 Unsteady Wake Physics & Force Vector Overlays
+* **Von Karman Vortex Street**: Implemented time-dependent transverse wave oscillations ($\sin(\phi - 0.08x)$) and random velocity fluctuations downstream of the hull ($x > 0$), resulting in realistic wake shedding and turbulent eddy animations.
+* **Flickering Boundary Layer**: Traced a translucent orange boundary layer envelope along the hull surface that grows thicker towards the stern ($\delta \propto x \cdot Re_x^{-0.2}$) and features live shear instability oscillations.
+* **Live Hull Force Arrows**: Overlayed colored force vectors reacting in real-time to speed sliders:
+  - **Bow Drag ($F_{\text{drag}}$)** in Red (pointing aft) with dynamic resistance labels.
+  - **Stern Suction ($F_{\text{suction}}$)** in Cyan (pointing forward).
+  - **Transverse Lift ($F_{\text{vortex}}$)** in Green (oscillating sideways in phase with vortex shedding).
+
+### 12.3 Co-Optimisation Run Fix & UI Integration
+* **DOM Crash Fix**: Resolved a frontend `TypeError: Cannot read properties of null (reading 'classList')` exception inside `startRun()` by placing the missing `#cmp-panel` and `#result-panel` containers into the Design Space HTML body.
+* **Real-time Results**: Hitting the `RUN CO-OPTIMISATION` button now successfully resets charts, fires the backend JSON-RPC pipeline, streams stdout to the Pipeline Monitor log textarea, and displays comparison cards once evaluations finish.
+
+### 12.4 Role of DeepSeek in ShipForge
+* **Conceptual LLM Backbone**: In the architecture flowchart, **DeepSeek** serves as the conceptual LLM client backend for the Agentic Orchestrator, demonstrating how multi-agent reasoning models call MCP tools to coordinate evaluations.
+* **Numerical Core**: In the active execution path, the actual local optimization loop is **100% numerical** (Latin Hypercube Sampling, Pareto Front search, Holtrop-Mennen empirical equations, and classification scantlings rules). It uses local surrogate models for fatigue calculations without requiring external API calls.
+
+### 12.5 Visual Proofs & Walkthroughs
+
+![CFD Solver Simulation Walkthrough](docs/images/cfd_walkthrough.webp)
+
+*Figure 12.1: Real-time walkthrough of the redesigned CFD Flow Solver demonstrating side-by-side squares, bento controls, and wake physics.*
+
+![CFD Pressure Contours & Force Vectors](docs/images/cfd_pressure_mode.png)
+
+*Figure 12.2: CFD Pressure Mode view showing boundary layer outlines, bow drag, stern thrust, and oscillating lift force vectors.*
+
+![CFD Velocity Field & Wake Particles](docs/images/cfd_velocity_mode.png)
+
+*Figure 12.3: CFD Velocity Field view showing velocity grid arrows and color-coded particle paths with turbulent wake eddies.*
+
+![Co-Optimisation Dashboard Results](docs/images/design_space_completed.png)
+
+*Figure 12.4: Completed co-optimization pipeline showing Pareto front chart, speed resistance curves, and comparison results cards.*
+
+![Co-Optimisation Run Animation](docs/images/design_space_run.webp)
+
+*Figure 12.5: Interactive co-optimization simulation showing real-time LHS evaluations, logs, and live progress updating.*
 """
     
     # Concatenate everything

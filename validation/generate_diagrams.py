@@ -186,5 +186,152 @@ def create_architecture_diagram():
     image.save(out_path)
     print(f"Flowchart successfully generated and saved to {out_path}")
 
+def create_midship_diagram():
+    # Set high-resolution canvas (1200 x 800)
+    width, height = 1200, 800
+    # Create background with soft gradient
+    image = Image.new("RGBA", (width, height), (15, 23, 42, 255)) # Dark navy (#0F172A)
+    draw = ImageDraw.Draw(image)
+    
+    # Try to load fonts
+    try:
+        font_title = ImageFont.truetype("arial.ttf", 36)
+        font_subtitle = ImageFont.truetype("arial.ttf", 18)
+        font_bold = ImageFont.truetype("arialbd.ttf", 20)
+        font_regular = ImageFont.truetype("arial.ttf", 16)
+        font_dim = ImageFont.truetype("arial.ttf", 14)
+    except IOError:
+        font_title = ImageFont.load_default()
+        font_subtitle = font_title
+        font_bold = font_title
+        font_regular = font_title
+        font_dim = font_title
+
+    # Draw Title
+    draw.text((width//2, 50), "Stiffened Box Girder Midship Section Model", fill=(255, 255, 255, 255), font=font_title, anchor="ms")
+    draw.text((width//2, 85), "Idealized structural cross-section for section modulus & FEA stress analysis", fill=(148, 163, 184, 255), font=font_subtitle, anchor="ms")
+
+    # Center coordinates of the cross-section box
+    cx, cy = 600, 430
+    box_w, box_h = 500, 320  # Breadth B = 500, Depth D = 320
+    
+    # Coordinates of box corners
+    left = cx - box_w//2   # 350
+    right = cx + box_w//2  # 850
+    top = cy - box_h//2    # 270
+    bottom = cy + box_h//2 # 590
+    
+    # Draw radial glow under the box girder
+    for r in range(400, 0, -10):
+        alpha = int(30 * (1 - r / 400.0))
+        draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(59, 130, 246, alpha))
+
+    # Colors
+    color_plate = (148, 163, 184, 255)       # Slate blue/grey for plates
+    color_stiffener = (56, 189, 248, 255)     # Sky blue for stiffeners
+    color_dim = (245, 158, 11, 255)           # Amber for dimension lines
+    color_label = (226, 232, 240, 255)         # Off-white for general text
+    
+    # 1. Draw Plate Panels (Thick rectangles)
+    # Deck Plating (Top)
+    draw.rectangle([left - 5, top - 6, right + 5, top + 4], fill=color_plate)
+    # Bottom Plating (Bottom)
+    draw.rectangle([left - 5, bottom - 4, right + 5, bottom + 6], fill=color_plate)
+    # Side Shell Plating (Left & Right)
+    draw.rectangle([left - 10, top + 4, left, bottom - 4], fill=color_plate)
+    draw.rectangle([right, top + 4, right + 10, bottom - 4], fill=color_plate)
+    
+    # 2. Draw Longitudinal Stiffeners (Spacing s)
+    # Draw T-stiffeners on deck and bottom
+    num_stiffeners = 9
+    stiff_xs = np.linspace(left + 50, right - 50, num_stiffeners)
+    stiff_h = 24  # height of stiffener web
+    flange_w = 14 # width of flange
+    
+    for x in stiff_xs:
+        x_int = int(x)
+        # Top deck stiffeners (pointing downwards)
+        # Web
+        draw.rectangle([x_int - 2, top + 4, x_int + 2, top + 4 + stiff_h], fill=color_stiffener)
+        # Flange
+        draw.rectangle([x_int - flange_w//2, top + 4 + stiff_h, x_int + flange_w//2, top + 4 + stiff_h + 4], fill=color_stiffener)
+        
+        # Bottom deck stiffeners (pointing upwards)
+        # Web
+        draw.rectangle([x_int - 2, bottom - 4 - stiff_h, x_int + 2, bottom - 4], fill=color_stiffener)
+        # Flange
+        draw.rectangle([x_int - flange_w//2, bottom - 4 - stiff_h - 4, x_int + flange_w//2, bottom - 4 - stiff_h], fill=color_stiffener)
+
+    # 3. Dimension line for Beam (B) - above top deck
+    dim_y = top - 70
+    draw.line([left, dim_y, right, dim_y], fill=color_dim, width=2)
+    # Dashed/dotted extension lines
+    for dy in range(dim_y - 10, top - 5, 4):
+        draw.line([left, dy, left, dy+2], fill=(100, 116, 139, 255), width=1)
+        draw.line([right, dy, right, dy+2], fill=(100, 116, 139, 255), width=1)
+    # Arrow heads for Beam B
+    draw.polygon([left, dim_y, left + 12, dim_y - 5, left + 12, dim_y + 5], fill=color_dim)
+    draw.polygon([right, dim_y, right - 12, dim_y - 5, right - 12, dim_y + 5], fill=color_dim)
+    # Label for Beam B
+    draw.text((cx, dim_y - 20), "Beam (B)", fill=color_dim, font=font_bold, anchor="mm")
+    
+    # 4. Dimension line for Depth (D) - to the left of the shell
+    dim_x = left - 120
+    draw.line([dim_x, top, dim_x, bottom], fill=color_dim, width=2)
+    # Extension lines
+    for dx in range(dim_x - 10, left - 10, 4):
+        draw.line([dx, top, dx+2, top], fill=(100, 116, 139, 255), width=1)
+        draw.line([dx, bottom, dx+2, bottom], fill=(100, 116, 139, 255), width=1)
+    # Arrow heads for Depth D
+    draw.polygon([dim_x, top, dim_x - 5, top + 12, dim_x + 5, top + 12], fill=color_dim)
+    draw.polygon([dim_x, bottom, dim_x - 5, bottom - 12, dim_x + 5, bottom - 12], fill=color_dim)
+    # Label for Depth D
+    draw.text((dim_x - 25, cy), "Depth (D)", fill=color_dim, font=font_bold, anchor="rm")
+
+    # 5. Dimension line for Stiffener Spacing (s)
+    s_x1 = int(stiff_xs[3])
+    s_x2 = int(stiff_xs[4])
+    s_cy = bottom - 50
+    draw.line([s_x1, s_cy, s_x2, s_cy], fill=color_dim, width=2)
+    # Arrow heads for spacing s
+    draw.polygon([s_x1, s_cy, s_x1 + 6, s_cy - 3, s_x1 + 6, s_cy + 3], fill=color_dim)
+    draw.polygon([s_x2, s_cy, s_x2 - 6, s_cy - 3, s_x2 - 6, s_cy + 3], fill=color_dim)
+    # Label for spacing s
+    draw.text(((s_x1 + s_x2)//2, s_cy - 15), "Spacing (s)", fill=color_dim, font=font_dim, anchor="mm")
+
+    # 6. Labels and Arrow Callouts
+    # Label: Deck Plating
+    draw.text((right + 120, top - 30), "Deck Plating", fill=color_label, font=font_bold, anchor="lm")
+    # Draw arrow from label to deck plating
+    draw.line([right + 110, top - 30, right + 10, top - 15, cx + 100, top], fill=(148, 163, 184, 180), width=2)
+    draw.polygon([cx + 100, top, cx + 110, top - 6, cx + 108, top + 6], fill=(148, 163, 184, 255))
+    
+    # Label: Side Shell Plating
+    draw.text((right + 120, cy), "Side Shell Plating", fill=color_label, font=font_bold, anchor="lm")
+    # Draw arrow to side shell plating
+    draw.line([right + 110, cy, right + 5, cy], fill=(148, 163, 184, 180), width=2)
+    draw.polygon([right + 5, cy, right + 15, cy - 5, right + 15, cy + 5], fill=(148, 163, 184, 255))
+    
+    # Label: Bottom Plating
+    draw.text((right + 120, bottom + 30), "Bottom Plating", fill=color_label, font=font_bold, anchor="lm")
+    # Draw arrow to bottom plating
+    draw.line([right + 110, bottom + 30, right + 10, bottom + 15, cx + 100, bottom], fill=(148, 163, 184, 180), width=2)
+    draw.polygon([cx + 100, bottom, cx + 108, bottom - 6, cx + 110, bottom + 6], fill=(148, 163, 184, 255))
+    
+    # Label: Longitudinal Stiffeners
+    draw.text((cx - 100, bottom + 110), "Longitudinal Stiffeners", fill=color_stiffener, font=font_bold, anchor="mm")
+    # Draw arrow to one of bottom stiffeners
+    stiff_target_x = int(stiff_xs[2])
+    draw.line([cx - 100, bottom + 95, cx - 120, bottom + 60, stiff_target_x, bottom - 15], fill=(56, 189, 248, 180), width=2)
+    draw.polygon([stiff_target_x, bottom - 15, stiff_target_x - 6, bottom - 25, stiff_target_x + 6, bottom - 25], fill=color_stiffener)
+
+    # Save to disk
+    plots_dir = "validation/plots"
+    os.makedirs(plots_dir, exist_ok=True)
+    out_path = os.path.join(plots_dir, "midship_section.png")
+    image.save(out_path)
+    print(f"Midship section diagram successfully generated and saved to {out_path}")
+
 if __name__ == "__main__":
     create_architecture_diagram()
+    create_midship_diagram()
